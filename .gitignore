@@ -7,3 +7,5 @@ main
 *.xlsx
 *.xls
 *.png
+# ignore files with 'tmp' prefix
+tmp*
