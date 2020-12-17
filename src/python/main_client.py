@@ -9,6 +9,7 @@ from toolkit.tools import parse_ip_port
 
 N = 16
 INTERP = None
+ZLIM = 3
 FPS = 194
 TH = 0.15
 UDP = False
@@ -61,7 +62,7 @@ def main(args):
 			my_processor = Processor(args.interp, noblob=args.noblob, 
 							threshold=args.threshold)
 			my_processor.print_info()
-			my_player = Player(zlim=3, N=args.interp)
+			my_player = Player(zlim=args.zlim, N=args.interp)
 
 			my_generator = my_client.gen(input_arg)
 			my_generator = my_processor.gen_wrapper(my_generator)
@@ -79,6 +80,7 @@ if __name__ == '__main__':
 	parser.add_argument('--noblob', dest='noblob', action='store_true', default=False, help="do not filter out blob")
 	parser.add_argument('--th', dest='threshold', action='store', default=TH, type=float, help="blob filter threshold")
 	parser.add_argument('-i', '--interactive', dest='interactive', action='store_true', default=False, help="interactive mode")
+	parser.add_argument('-z', '--zlim', dest='zlim', action='store', default=ZLIM, type=float, help="z-axis limit")
 	parser.add_argument('-f', dest='fps', action='store', default=FPS, type=int, help="frames per second")
 	parser.add_argument('-m', '--matplot', dest='matplot', action='store_true', default=False, help="use mathplotlib to plot")
 	args = parser.parse_args()
