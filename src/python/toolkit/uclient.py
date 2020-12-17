@@ -72,8 +72,7 @@ class Uclient:
 	ip_address = gethostbyname(hostname)
 	# CLIENT_HOST = "localhost"
 	CLIENT_HOST = ip_address
-	CLIENT_PORT = 25531
-	CLIENT_IPADDR = (CLIENT_HOST, CLIENT_PORT)
+	CLIENT_PORT_BASE = 25531
 	# SERVER_HOST = "localhost"
 	SERVER_HOST = ip_address
 	SERVER_PORT = 25530
@@ -130,6 +129,17 @@ class Uclient:
 		print(f"  client address: {self.client_addr}")
 		print(f"  server address: {self.server_addr}")
 
+	def try_bind(self, address):
+		try:
+			self.my_socket.bind(address)
+		except OSError as e:
+			if e.errno == errno.EADDRINUSE:
+				print("HINT: client address already in use, generating another one")
+			else:
+				raise e
+			return False
+		return True
+
 	def init_socket(self):
 		if self.UDP:
 			## UDP socket
@@ -145,25 +155,21 @@ class Uclient:
 				if tmp_addr[0] is None:
 					tmp_addr[0] = self.CLIENT_HOST
 				if tmp_addr[1] is None:
-					tmp_addr[1] = self.CLIENT_PORT
+					tmp_addr[1] = self.CLIENT_PORT_BASE
 				self.client_addr = tuple(tmp_addr)
 			self.my_socket.bind(self.client_addr)
 		else:
 			if self.UDP:
-				self.client_addr = self.CLIENT_IPADDR
-				self.my_socket.bind(self.client_addr)
-			else:
-				while True:
+				self.client_addr = (self.CLIENT_HOST, self.CLIENT_PORT_BASE-1)
+			while True:
+				if self.UDP:
+					## each attemp increase port number by one
+					self.client_addr = (self.CLIENT_HOST, self.client_addr[1]+1)
+				else:
 					## add random 6 digits to the address (pad 0 to the head if necessary)
 					self.client_addr = self.CLIENT_FILE_PREFIX + f".{randint(0, 999999):0>6}"
-					try:
-						self.my_socket.bind(self.client_addr)
-						break
-					except OSError as e:
-						if e.errno == errno.EADDRINUSE:
-							print("HINT: client address already in use, generating another one")
-						else:
-							raise e
+				if self.try_bind(self.client_addr):
+					break
 		self.binded = True
 		self.my_socket.settimeout(self.TIMEOUT)
 
