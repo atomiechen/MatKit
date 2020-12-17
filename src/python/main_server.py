@@ -27,6 +27,7 @@ except:
 UDP = False
 NO_CONVERT = False
 
+ZLIM = 3
 FPS = 100
 
 
@@ -116,7 +117,7 @@ def main(args):
 			print("Activate visualization using pyqtgraph")
 		## visualization must be in main process
 		from toolkit.visual import gen_reshape
-		my_player = Player(zlim=3, N=args.n)
+		my_player = Player(zlim=args.zlim, N=args.n)
 		my_player.run_stream(generator=gen_reshape(data_out, args.n), fps=args.fps)
 
 		p.join()
@@ -144,6 +145,7 @@ if __name__ == '__main__':
 	parser.add_argument('-r', '--raw', dest='raw', action='store_true', default=False, help="raw data mode")
 	parser.add_argument('-nc', '--no_convert', dest='no_convert', action='store_true', default=NO_CONVERT, help="do not apply voltage-resistance conversion")
 	parser.add_argument('-v', '--visualize', dest='visualize', action='store_true', default=False, help="enable visualization")
+	parser.add_argument('-z', '--zlim', dest='zlim', action='store', default=ZLIM, type=float, help="z-axis limit")
 	parser.add_argument('-f', dest='fps', action='store', default=FPS, type=int, help="frames per second")
 	parser.add_argument('--pyqtgraph', dest='pyqtgraph', action='store_true', default=False, help="use pyqtgraph to plot")
 	# parser.add_argument('-m', '--matplot', dest='matplot', action='store_true', default=False, help="use matplotlib to plot")
