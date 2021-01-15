@@ -45,7 +45,7 @@ class DataSetterSerial:
 				data = self.my_serial.read(self.total)
 				if len(data) != self.total:
 					raise SerialTimeout
-				data_tmp[:] = list(data)
+				data_tmp[:self.total] = list(data)
 				break
 
 
