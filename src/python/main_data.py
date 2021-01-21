@@ -8,6 +8,7 @@ N = 16
 INTERP = 16
 FPS = 194
 TH = 0.15
+ZLIM = 3
 
 
 def main(args):
@@ -47,7 +48,7 @@ def main(args):
 			from toolkit.visual.player_matplot import Player3DMatplot as Player
 		else:
 			from toolkit.visual.player_pyqtgraph import Player3DPyqtgraph as Player
-		my_player = Player(zlim=3, widgets=True, N=args.n)
+		my_player = Player(zlim=args.zlim, widgets=True, N=args.n)
 		my_player.run_interactive(dataset=content[0], infoset=content[1], fps=args.fps)
 
 
@@ -58,6 +59,7 @@ if __name__ == '__main__':
 	parser.add_argument('-n', dest='n', action='store', default=N, type=int, help="sensor side size")
 	parser.add_argument('-f', dest='fps', action='store', default=FPS, type=int, help="frames per second")
 	parser.add_argument('-m', '--matplot', dest='matplot', action='store_true', default=False, help="use mathplotlib to plot")
+	parser.add_argument('-z', '--zlim', dest='zlim', action='store', default=ZLIM, type=float, help="z-axis limit")
 	parser.add_argument('-o', dest='output', action='store', default=None, help="output processed data to file")
 	parser.add_argument('--interp', dest='interp', action='store', default=INTERP, type=int, help="interpolated side size")
 	parser.add_argument('--noblob', dest='noblob', action='store_true', default=False, help="do not filter out blob")
