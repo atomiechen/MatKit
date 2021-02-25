@@ -201,9 +201,9 @@ class Player3DPyqtgraph(Player3D, QtGui.QWidget):
 		## Create a GL view widget to display data
 		background_color = app.palette().color(QtGui.QPalette.Background)
 		view.setBackgroundColor(background_color)
-		view.setCameraPosition(distance=30)
+		view.setCameraPosition(distance=1.8*self.N)
 		# view.resize(600, 550)  # resize window
-		view.pan(0, 0, 7)  # move the camera up
+		view.pan(0, 0, 0.7*self.N)  # move the camera up
 		layout.addWidget(view)
 
 		## Add a grid to the view
