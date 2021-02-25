@@ -170,7 +170,7 @@ class Player3DPyqtgraph(Player3D, QtGui.QWidget):
 	## ref: https://stackoverflow.com/questions/27475940/pyqt-connect-to-keypressevent
 	keyPressed = QtCore.pyqtSignal(object)
 
-	def __init__(self, *args, widgets=True, **kwargs):
+	def __init__(self, *args, **kwargs):
 		"""constructor
 		
 		Args:
@@ -238,16 +238,15 @@ class Player3DPyqtgraph(Player3D, QtGui.QWidget):
 		self.app = app
 		self.layout = layout
 		self.view = view
-		self.widgets = widgets  ## show widgets
-		self.started = False
 
 	def _start(self):
+		super()._start()
 		self.show()
-		self.started = True
 		if (sys.flags.interactive != 1) or not hasattr(QtCore, 'PYQT_VERSION'):
 			QtGui.QApplication.instance().exec_()
 
 	def _close(self):
+		super()._close()
 		QtGui.QApplication.instance().quit()
 
 	def _draw(self, data):

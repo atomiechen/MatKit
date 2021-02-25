@@ -65,16 +65,18 @@ class Player3D:
 		self.cur_idx = 0  # current data slice index
 		self.max_idx = 0  # max data slice index
 		self.pause = True  # state of playing/pause
+		self.started = False  # has started or not
 		## keyword parameters
 		self._generator = None
 		self._dataset = None
 		self._infoset = None
 		self.step = 50
 		self.fps = 200
+		self.widgets = True  ## show widgets
 		self.config(**kwargs)
 
 	def config(self, *, generator=None, dataset=None, infoset=None, 
-		step=None, fps=None):
+		step=None, fps=None, widgets=None):
 		"""configure keyword parameters
 		
 		"""		
@@ -88,6 +90,8 @@ class Player3D:
 			self.step = step
 		if fps:
 			self.fps = fps
+		if widgets is not None:
+			self.widgets = widgets
 
 	@property
 	def zlim(self):
@@ -315,20 +319,14 @@ class Player3D:
 		print("Last frame")
 
 	def _start(self):
-		"""start the visualization system, should be overridden
-		
-		Raises:
-			NotImplementedError: Not implemented
+		self.started = True
+		"""start the visualization system, can be overridden
 		"""
-		raise NotImplementedError("_start()")
 
 	def _close(self):
-		"""close the visualization system, should be overridden
-		
-		Raises:
-			NotImplementedError: Not implemented
+		self.started = False
+		"""close the visualization system, can be overridden
 		"""
-		raise NotImplementedError("_close()")
 
 	def _draw(self, data):
 		"""draw the given data, should be overridden
