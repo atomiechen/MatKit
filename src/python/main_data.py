@@ -3,12 +3,16 @@ import numpy as np
 
 from toolkit.filemanager import parse_line, write_line
 from toolkit.process import Processor
+from toolkit.server import Proc
 
 N = 16
 INTERP = 16
 FPS = 194
 TH = 0.15
 ZLIM = 3
+CONVERT = False
+V0 = 255
+R0_RECI = 1  ## a constant to multiply the value
 
 
 def main(args):
@@ -40,6 +44,8 @@ def main(args):
 		with open(filename, 'r') as fin:
 			for line in fin:
 				data_parse, frame_idx, date_time = parse_line(line, args.n, ',')
+				if args.convert:
+					Proc.calReci_numpy_array(data_parse, args.v0, R0_RECI)
 				data_reshape = data_parse.reshape(args.n, args.n)
 				content[0].append(np.array(data_reshape))
 				content[1].append(f"frame idx: {frame_idx}  {date_time}")
@@ -64,6 +70,8 @@ if __name__ == '__main__':
 	parser.add_argument('--interp', dest='interp', action='store', default=INTERP, type=int, help="interpolated side size")
 	parser.add_argument('--noblob', dest='noblob', action='store_true', default=False, help="do not filter out blob")
 	parser.add_argument('--th', dest='threshold', action='store', default=TH, type=float, help="blob filter threshold")
+	parser.add_argument('--convert', dest='convert', action='store_true', default=CONVERT, help="apply voltage-resistance conversion")
+	parser.add_argument('--v0', dest='v0', action='store', default=V0, type=int, help="refercence voltage for conversion")
 	args = parser.parse_args()
 
 	main(args)
