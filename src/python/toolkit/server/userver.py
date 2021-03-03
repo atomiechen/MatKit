@@ -47,7 +47,12 @@ class Userver:
 	SERVER_FILE = "/var/tmp/unix.socket.server"
 	## UDP socket address
 	hostname = gethostname()
-	ip_address = gethostbyname(hostname)
+
+	try:
+		ip_address = gethostbyname(hostname)
+	except:
+		ip_address = gethostbyname("localhost")
+
 	# SERVER_HOST = "localhost"
 	SERVER_HOST = ip_address
 	SERVER_PORT = 25530

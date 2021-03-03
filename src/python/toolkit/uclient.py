@@ -69,7 +69,12 @@ class Uclient:
 	SERVER_FILE = "/var/tmp/unix.socket.server"
 	## UDP socket address
 	hostname = gethostname()
-	ip_address = gethostbyname(hostname)
+	
+	try:
+		ip_address = gethostbyname(hostname)
+	except:
+		ip_address = gethostbyname("localhost")
+
 	# CLIENT_HOST = "localhost"
 	CLIENT_HOST = ip_address
 	CLIENT_PORT_BASE = 25531
