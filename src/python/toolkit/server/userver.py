@@ -13,7 +13,7 @@ from os import unlink
 
 from queue import Empty
 
-from .flag import FLAG
+from .flag import FLAG, FLAG_REC
 
 
 class CMD(IntEnum):
@@ -29,6 +29,7 @@ class CMD(IntEnum):
 		REC_STOP (int): stop recording
 		RESTART (int): restart the server with processing parameters
 		PARAS (int): get current processing parameters of the server
+		REC_BREAK (int): stop current recording and start a new one
 	"""
 	
 	CLOSE = 0
@@ -39,6 +40,7 @@ class CMD(IntEnum):
 	REC_STOP = 5
 	RESTART = 6
 	PARAS = 7
+	REC_BREAK = 8
 
 class Userver:
 
@@ -56,9 +58,12 @@ class Userver:
 	N = 16
 	TIMEOUT = 0.1
 	BUF_SIZE = 2048
+	REC_ID = 0
 
 	def __init__(self, data_out, data_raw, idx_out, server_addr=None, **kwargs):
 		## for multiprocessing communication
+		self.queue_to_serial = None
+		self.queue_to_file = None
 		self.queue = None
 
 		self.config(**kwargs)
@@ -74,13 +79,17 @@ class Userver:
 
 		self.init_socket()
 
-	def config(self, *, n=None, udp=None, timeout=None, queue=None):
+	def config(self, *, n=None, udp=None, timeout=None, queue_to_serial=None, queue_to_file=None, queue=None):
 		if n:
 			self.N = n
 		if udp is not None:
 			self.UDP = udp
 		if timeout:
 			self.TIMEOUT = timeout
+		if queue_to_serial:
+			self.queue_to_serial = queue_to_serial
+		if queue_to_file:
+			self.queue_to_file = queue_to_file
 		if queue:
 			self.queue = queue
 
@@ -129,6 +138,7 @@ class Userver:
 		if self.data[0] == CMD.CLOSE:
 			reply = pack("=B", 0)
 			self.my_socket.sendto(reply, self.client_addr)
+			self.queue_to_file.put(FLAG_REC.FLAG_REC_STOP)
 			return CMD.CLOSE
 		elif self.data[0] == CMD.DATA:
 			reply = pack(self.frame_format, *(self.data_out), self.idx_out.value)
@@ -138,15 +148,27 @@ class Userver:
 			self.my_socket.sendto(reply, self.client_addr)
 		## TODO
 		elif self.data[0] == CMD.REC_DATA:
-			pass
+			reply = pack("=B", 0) + self.data[1:]
+			self.my_socket.sendto(reply, self.client_addr)
+			self.queue_to_file.put(FLAG_REC.FLAG_REC_DATA)
+			self.queue_to_file.put(self.data[1:])
 		elif self.data[0] == CMD.REC_RAW:
-			pass
+			reply = pack("=B", 0) + self.data[1:]
+			self.my_socket.sendto(reply, self.client_addr)
+			self.queue_to_file.put(FLAG_REC.FLAG_REC_RAW)
+			self.queue_to_file.put(self.data[1:])
 		elif self.data[0] == CMD.REC_STOP:
-			pass
+			reply = pack("=B", 0)
+			self.my_socket.sendto(reply, self.client_addr)
+			self.queue_to_file.put(FLAG_REC.FLAG_REC_STOP)
 		elif self.data[0] == CMD.RESTART:
 			pass
 		elif self.data[0] == CMD.PARAS:
 			pass
+		elif self.data[0] == CMD.REC_BREAK:
+			reply = pack("=B", 0)
+			self.my_socket.sendto(reply, self.client_addr)
+			self.queue_to_file.put(FLAG_REC.FLAG_REC_BREAK)
 
 	def print_service(self):
 		if self.UDP:
@@ -180,3 +202,4 @@ class Userver:
 				pass
 			except (FileNotFoundError, ConnectionResetError):
 				print("client off-line")
+

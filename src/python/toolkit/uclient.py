@@ -43,6 +43,7 @@ class CMD(IntEnum):
 	REC_STOP = 5
 	RESTART = 6
 	PARAS = 7
+	REC_BREAK = 8
 
 
 class Uclient:
@@ -432,6 +433,14 @@ class Uclient:
 				self.send_cmd(my_cmd)
 				results = self.recv_paras()
 				self.print_paras(results[1:])
+			elif my_cmd == CMD.REC_BREAK:
+				self.send_cmd(my_cmd)
+				ret, recv_str = self.recv_string()
+				if ret == 0:
+					print("successfully break")
+				else:
+					print("fail to break!")
+
 		except (FileNotFoundError, ConnectionResetError):
 			print("server off-line")
 		except ConnectionRefusedError:

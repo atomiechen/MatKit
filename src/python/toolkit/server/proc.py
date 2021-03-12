@@ -7,7 +7,7 @@ from serial import Serial
 from multiprocessing import Array  # 共享内存
 from queue import Empty
 
-from .flag import FLAG
+from .flag import FLAG, FLAG_REC
 from .exception import SerialTimeout
 
 class FILTER_SPATIAL(Enum):
@@ -28,6 +28,7 @@ class DataSetterSerial:
 		self.my_serial = self.connect_serial(baudrate, port, timeout)
 		self.total = total
 		self.DELIM = 0xFF
+		self.start_time = time.time()
 
 	@staticmethod
 	def connect_serial(baudrate, port, timeout=None):
@@ -36,7 +37,7 @@ class DataSetterSerial:
 		print("串口详情参数：", ser)
 		return ser
 
-	def __call__(self, data_tmp):
+	def __call__(self, data_tmp, **kwargs):
 		while True:
 			recv = self.my_serial.read()
 			if len(recv) != 1:
@@ -47,11 +48,25 @@ class DataSetterSerial:
 					raise SerialTimeout
 				data_tmp[:] = list(data)
 				break
+		if "filename" in kwargs.keys():
+			filename = kwargs['filename'].decode().split('.')
+			filename[0] += ('_' + str(kwargs['filename_id']))
+			filename = '.'.join(filename)
+			with open(filename, 'a', encoding='utf-8') as f:
+				for d in data_tmp:
+					f.write(str(int(d)) + ',')
+				f.write(str(kwargs['idx_out'].value) + ',' + str(int(time.time() * (10**6))) + ',\n')
 
 
 class DataSetterFile:
 	## TODO add file as source
-	pass
+	def __init__(self):
+		self.start_time = time.time()
+
+	def __call__(self, data_tmp, **kwargs):
+		if "filename" in kwargs.keys():
+			with open(kwargs['filename'], 'a', encoding='utf-8') as f:
+				f.write(str(data_tmp) + ',' + str(kwargs['idx_out']) + ',' + str(time.time() - self.start_time) + '\n')
 
 
 class Proc:
@@ -82,6 +97,14 @@ class Proc:
 	## for warm up, make CPU schedule more time for serial reading
 	WARM_UP = 1  # seconds
 
+	## run loop or wait for waking up from server
+	RUN_LOOP = True
+
+	## filename received from server
+	filename = None
+
+	filename_id = 0
+
 	def __init__(self, n, data_setter, data_out, data_raw, idx_out, **kwargs):
 		self.n = n
 		## default data source
@@ -102,11 +125,12 @@ class Proc:
 
 		## for multiprocessing communication
 		self.queue = None
+		self.queue_from_server = None
 
 		self.config(**kwargs)
 
 	def config(self, *, raw=None, filter_spatial=None, filter_temporal=None, 
-				V0=None, R0_RECI=None, convert=None, queue=None):
+				V0=None, R0_RECI=None, convert=None, queue=None, RUN_LOOP=None, queue_from_server=None):
 		if raw is not None:
 			self.my_raw = raw
 		if V0:
@@ -121,6 +145,10 @@ class Proc:
 			self.my_filter_temporal = filter_temporal
 		if queue:
 			self.queue = queue
+		if RUN_LOOP:
+			self.RUN_LOOP = RUN_LOOP
+		if queue_from_server:
+			self.queue_from_server = queue_from_server
 
 	def reset(self):
 		## for output
@@ -142,7 +170,11 @@ class Proc:
 		np_array *= r0_reci
 
 	def get_raw_frame(self):
-		self.data_setter(self.data_tmp)
+		if self.filename:
+			self.data_setter(data_tmp=self.data_tmp, filename=self.filename,
+							idx_out=self.idx_out, filename_id=self.filename_id)
+		else:
+			self.data_setter(data_tmp=self.data_tmp)
 		if self.my_convert:
 			# for i in range(self.total):
 			# 	self.data_tmp[i] = self.calReciprocalResistance(self.data_tmp[i], self.V0, self.R0_RECI)
@@ -336,14 +368,37 @@ class Proc:
 		print("Running processing...")
 		while True:
 			## check signals from the other process
-			if self.queue is not None:
+			if self.queue_from_server is not None:
 				try:
-					flag = self.queue.get_nowait()
+					flag = self.queue_from_server.get_nowait()
 					if flag == FLAG.FLAG_STOP:
 						break
+					if flag == FLAG_REC.FLAG_REC_DATA:
+						self.RUN_LOOP = True
+						self.my_raw = False
+						while True:
+							filename = self.queue_from_server.get_nowait()
+							if filename is not None:
+								self.filename = filename
+								break
+					elif flag == FLAG_REC.FLAG_REC_RAW:
+						self.RUN_LOOP = True
+						self.my_raw = True
+						while True:
+							filename = self.queue_from_server.get_nowait()
+							if filename is not None:
+								self.filename = filename
+								break
+					elif flag == FLAG_REC.FLAG_REC_STOP:
+						self.RUN_LOOP = False
+						self.filename = None
+						self.filename_id = 0
+					elif flag == FLAG_REC.FLAG_REC_BREAK:
+						self.filename_id += 1
 				except Empty:
 					pass
 
+			# if self.RUN_LOOP:
 			try:
 				self.get_raw_frame()
 			except SerialTimeout:
@@ -354,6 +409,7 @@ class Proc:
 				self.filter()
 				self.calibrate()
 			self.data_out[:] = self.data_tmp
+			# if self.queue_from_server is None:
 			self.post_action()
 
 	def warm_up(self):

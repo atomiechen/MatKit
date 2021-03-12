@@ -47,7 +47,7 @@ def main(args):
 			from toolkit.visual.player_matplot import Player3DMatplot as Player
 		else:
 			from toolkit.visual.player_pyqtgraph import Player3DPyqtgraph as Player
-		my_player = Player(zlim=3, widgets=True, N=args.n)
+		my_player = Player(zlim=255, widgets=True, N=args.n)
 		my_player.run_interactive(dataset=content[0], infoset=content[1], fps=args.fps)
 
 

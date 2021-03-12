@@ -9,7 +9,7 @@ from multiprocessing import Queue
 
 import traceback
 
-from toolkit.server import Proc, Userver, DataSetterSerial
+from toolkit.server import Proc, Userver, DataSetterSerial, DataSetterFile
 from toolkit.server import FLAG, CustomException
 from toolkit.tools import parse_ip_port
 
@@ -42,8 +42,8 @@ def task_serial(paras):
 		my_setter = DataSetterSerial(paras['n']**2, paras['baudrate'], 
 									paras['port'], paras['timeout'])
 		my_proc = Proc(paras['n'], my_setter, paras['data_out'], 
-					paras['data_raw'], paras['idx_out'], queue=paras['queue'], 
-					raw=paras['raw'], convert=paras['convert'])
+					paras['data_raw'], paras['idx_out'], queue=paras['queue_to_serial'],
+					raw=paras['raw'], convert=paras['convert'], queue_from_server=paras['queue_to_file'])
 		my_proc.run()
 	except KeyboardInterrupt:
 		pass
@@ -59,7 +59,10 @@ def task_serial(paras):
 def task_server(paras):
 	try:
 		with Userver(paras['data_out'], paras['data_raw'], paras['idx_out'], 
-					paras['server_addr'], n=paras['n'], queue=paras['queue'], 
+					paras['server_addr'], n=paras['n'],
+					queue_to_serial=paras['queue_to_serial'],
+					queue_to_file=paras['queue_to_file'],
+					queue=paras['queue'],
 					udp=paras['udp']) as my_server:
 			my_server.run_service()
 	except KeyboardInterrupt:
@@ -74,8 +77,7 @@ def task_server(paras):
 
 def task_file(paras):
 	## TODO
-	my_setter = DataSetterFile()
-	my_proc = Proc(paras['n'], my_setter, paras['data_out'], paras['idx_out'])
+	pass
 
 def main(args):
 	if args.enum:
@@ -85,7 +87,10 @@ def main(args):
 	data_out = Array('d', args.n**2)  # d for double
 	data_raw = Array('d', args.n**2)  # d for double
 	idx_out = Value('i')  # i for int
+	idx_out_file = Value('i')
 	queue = Queue()
+	queue_to_serial = Queue()
+	queue_to_file = Queue()
 
 	if args.udp and args.address is not None:
 		args.address = parse_ip_port(args.address)
@@ -99,7 +104,10 @@ def main(args):
 		"data_out": data_out,
 		"data_raw": data_raw,
 		"idx_out": idx_out,
+		"idx_out_file": idx_out_file,
 		"queue": queue,
+		"queue_to_serial": queue_to_serial,
+		"queue_to_file": queue_to_file,
 		"convert": not args.no_convert,
 		"udp": args.udp,
 		"server_addr": args.address,

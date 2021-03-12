@@ -11,6 +11,7 @@ class FLAG_REC(IntEnum):
 	FLAG_REC_STOP = 0
 	FLAG_REC_DATA = 1
 	FLAG_REC_RAW = 2
+	FLAG_REC_BREAK = 3
 
 
 class FLAG_REC_RET(IntEnum):
