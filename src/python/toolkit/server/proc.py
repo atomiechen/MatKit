@@ -124,13 +124,12 @@ class Proc:
 		self.idx_out = idx_out
 
 		## for multiprocessing communication
-		self.queue = None
 		self.queue_from_server = None
 
 		self.config(**kwargs)
 
 	def config(self, *, raw=None, filter_spatial=None, filter_temporal=None, 
-				V0=None, R0_RECI=None, convert=None, queue=None, RUN_LOOP=None, queue_from_server=None):
+				V0=None, R0_RECI=None, convert=None, RUN_LOOP=None, queue_from_server=None):
 		if raw is not None:
 			self.my_raw = raw
 		if V0:
@@ -143,8 +142,6 @@ class Proc:
 			self.my_filter_spatial = filter_spatial
 		if filter_temporal in FILTER_TEMPORAL.__members__.values():
 			self.my_filter_temporal = filter_temporal
-		if queue:
-			self.queue = queue
 		if RUN_LOOP:
 			self.RUN_LOOP = RUN_LOOP
 		if queue_from_server:
@@ -409,7 +406,6 @@ class Proc:
 				self.filter()
 				self.calibrate()
 			self.data_out[:] = self.data_tmp
-			# if self.queue_from_server is None:
 			self.post_action()
 
 	def warm_up(self):

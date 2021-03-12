@@ -42,8 +42,8 @@ def task_serial(paras):
 		my_setter = DataSetterSerial(paras['n']**2, paras['baudrate'], 
 									paras['port'], paras['timeout'])
 		my_proc = Proc(paras['n'], my_setter, paras['data_out'], 
-					paras['data_raw'], paras['idx_out'], queue=paras['queue_to_serial'],
-					raw=paras['raw'], convert=paras['convert'], queue_from_server=paras['queue_to_file'])
+					paras['data_raw'], paras['idx_out'],
+					raw=paras['raw'], convert=paras['convert'], queue_from_server=paras['queue_to_main_client'])
 		my_proc.run()
 	except KeyboardInterrupt:
 		pass
@@ -60,9 +60,7 @@ def task_server(paras):
 	try:
 		with Userver(paras['data_out'], paras['data_raw'], paras['idx_out'], 
 					paras['server_addr'], n=paras['n'],
-					queue_to_serial=paras['queue_to_serial'],
-					queue_to_file=paras['queue_to_file'],
-					queue=paras['queue'],
+					queue_to_main_client=paras['queue_to_main_client'],
 					udp=paras['udp']) as my_server:
 			my_server.run_service()
 	except KeyboardInterrupt:
@@ -88,9 +86,7 @@ def main(args):
 	data_raw = Array('d', args.n**2)  # d for double
 	idx_out = Value('i')  # i for int
 	idx_out_file = Value('i')
-	queue = Queue()
-	queue_to_serial = Queue()
-	queue_to_file = Queue()
+	queue_to_main_client = Queue()
 
 	if args.udp and args.address is not None:
 		args.address = parse_ip_port(args.address)
@@ -105,9 +101,7 @@ def main(args):
 		"data_raw": data_raw,
 		"idx_out": idx_out,
 		"idx_out_file": idx_out_file,
-		"queue": queue,
-		"queue_to_serial": queue_to_serial,
-		"queue_to_file": queue_to_file,
+		"queue_to_main_client": queue_to_main_client,
 		"convert": not args.no_convert,
 		"udp": args.udp,
 		"server_addr": args.address,

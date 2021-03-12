@@ -33,6 +33,7 @@ class CMD(IntEnum):
 		REC_STOP (int): stop recording
 		RESTART (int): restart the server with processing parameters
 		PARAS (int): get current processing parameters of the server
+		REC_BREAK (int): stop current recording and start a new one
 	"""
 	
 	CLOSE = 0
