@@ -19,7 +19,7 @@ class Player3DMatplot(Player3D):
 
 	backend = "matplotlib"
 
-	def __init__(self, *args, widgets=True, **kwargs):
+	def __init__(self, *args, **kwargs):
 		"""constructor
 		
 		Args:
@@ -48,14 +48,12 @@ class Player3DMatplot(Player3D):
 			self.X, self.Y, heightR, rstride=1, cstride=1, cmap=cm.YlOrRd,
 			linewidth=0, antialiased=True )
 
-		self.widgets = widgets  ## show widgets
-		self.started = False
-
 	def _start(self):
-		self.started = True
+		super()._start()
 		plt.show()
 
 	def _close(self):
+		super()._close()
 		plt.close()
 
 	def _draw(self, data):

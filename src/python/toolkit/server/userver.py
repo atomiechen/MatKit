@@ -5,8 +5,9 @@ from socket import (
 )
 try:
 	from socket import AF_UNIX
+	support_unix_socket = True
 except ImportError:
-	pass
+	support_unix_socket = False
 from enum import IntEnum
 from struct import calcsize, pack, unpack, unpack_from
 from os import unlink
@@ -49,7 +50,12 @@ class Userver:
 	SERVER_FILE = "/var/tmp/unix.socket.server"
 	## UDP socket address
 	hostname = gethostname()
-	ip_address = gethostbyname(hostname)
+
+	try:
+		ip_address = gethostbyname(hostname)
+	except:
+		ip_address = gethostbyname("localhost")
+
 	# SERVER_HOST = "localhost"
 	SERVER_HOST = ip_address
 	SERVER_PORT = 25530
@@ -88,6 +94,9 @@ class Userver:
 			self.queue_to_main_client = queue_to_main_client
 
 	def init_socket(self):
+		if not support_unix_socket:
+			## this machine does not support UNIX domain socket
+			self.UDP = True
 		if self.UDP:
 			## UDP socket
 			self.my_socket = socket(AF_INET, SOCK_DGRAM)

@@ -7,6 +7,7 @@ from toolkit.uclient import Uclient
 from toolkit.process import Processor, CursorController, PressureSelector
 from toolkit import filemanager
 
+N = 16
 INTERP = 64
 TH = 0.15
 # TH = 20
@@ -23,8 +24,8 @@ UDP = False
 STATE_HOVER = 0
 STATE_MOVE = 1
 
-# IP = "127.0.0.1"
-IP = "192.168.6.85"
+IP = "localhost"
+# IP = "183.173.190.54"
 PORT = 8081
 
 FORMAT_TIMESTAMP = "%Y%m%d%H%M%S%f"
@@ -84,7 +85,7 @@ def main(args):
 					trackpoint=args.trackpoint)
 
 	with CursorClient(args.ip, args.port) as my_cursor_client:
-		with Uclient(args.client_addr, args.server_addr, udp=args.udp) as my_client:
+		with Uclient(args.client_addr, args.server_addr, udp=args.udp, n=args.n) as my_client:
 			my_processor.print_info()
 			my_cursor.print_info()
 			my_generator = my_processor.gen_points(my_client.gen())
@@ -142,6 +143,7 @@ if __name__ == '__main__':
 	parser.add_argument('-s', dest='server_addr', action='store', help="specify server socket address")
 	parser.add_argument('-c', dest='client_addr', action='store', help="specify client socket address")
 	parser.add_argument('-u', '--udp', dest='udp', action='store_true', default=UDP, help="use UDP protocol")
+	parser.add_argument('-n', dest='n', action='store', default=N, type=int, help="sensor side size")
 	parser.add_argument('--ip', dest='ip', action='store', default=IP, help="specify remote server ip address")
 	parser.add_argument('--port', dest='port', action='store', default=PORT, type=int, help="specify remote server port")
 	parser.add_argument('--mapcoor', dest='mapcoor', action='store_true', default=True, help="map coordinates directly")
