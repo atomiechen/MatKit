@@ -229,7 +229,8 @@ class Proc:
 		self.data_tmp = self.data_tmp.reshape(self.n, self.n)
 		freq = np.fft.rfft2(self.data_tmp)
 		freq *= self.kernel_sf
-		self.data_tmp = np.fft.irfft2(freq)
+		## must specify shape when the final axis number is odd
+		self.data_tmp = np.fft.irfft2(freq, self.data_tmp.shape)
 		self.data_tmp = self.data_tmp.reshape(self.total)
 
 	@staticmethod
