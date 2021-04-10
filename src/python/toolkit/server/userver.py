@@ -61,7 +61,7 @@ class Userver:
 	SERVER_PORT = 25530
 	SERVER_IPADDR = (SERVER_HOST, SERVER_PORT)
 
-	N = 16
+	TOTAL = 16 * 16
 	TIMEOUT = 0.1
 	BUF_SIZE = 2048
 	REC_ID = 0
@@ -77,15 +77,14 @@ class Userver:
 		self.server_addr = server_addr
 
 		self.binded = False
-		self.total = self.N * self.N
-		self.frame_format = f"={self.total}di"
+		self.frame_format = f"={self.TOTAL}di"
 		self.frame_size = calcsize(self.frame_format)
 
 		self.init_socket()
 
-	def config(self, *, n=None, udp=None, timeout=None, queue_to_main_client=None):
-		if n:
-			self.N = n
+	def config(self, *, total=None, udp=None, timeout=None, queue_to_main_client=None):
+		if total:
+			self.TOTAL = total
 		if udp is not None:
 			self.UDP = udp
 		if timeout:
@@ -116,6 +115,7 @@ class Userver:
 		else:
 			## check if ip-port address needs to be filled
 			if self.UDP:
+				self.server_addr = parse_ip_port(self.server_addr)
 				tmp_addr = list(self.server_addr)
 				if tmp_addr[0] is None:
 					tmp_addr[0] = self.SERVER_HOST

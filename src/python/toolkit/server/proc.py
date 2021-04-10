@@ -9,6 +9,8 @@ from queue import Empty
 
 from .flag import FLAG, FLAG_REC
 from .exception import SerialTimeout
+from ..tools import check_shape
+
 
 class FILTER_SPATIAL(Enum):
 	NONE = None  # no spatial filter
@@ -106,15 +108,19 @@ class Proc:
 	filename_id = 0
 
 	def __init__(self, n, data_setter, data_out, data_raw, idx_out, **kwargs):
-		self.n = n
+		## sensor info
+		self.n = check_shape(n)
+		self.mask = None
+
 		## default data source
 		self.data_setter = data_setter
 
-		self.total = n * n
-		self.cols = n//2 + 1
+		self.total = self.n[0] * self.n[1]
+		self.cols = self.n[1]//2 + 1
 
 		## intermediate data
 		self.data_tmp = np.zeros(self.total, dtype=float)
+		self.data_reshape = self.data_tmp.reshape(self.n[0], self.n[1])
 		## output data
 		# self.data_out = Array('d', self.total)  # d for double
 		## raw data
@@ -128,8 +134,11 @@ class Proc:
 
 		self.config(**kwargs)
 
-	def config(self, *, raw=None, filter_spatial=None, filter_temporal=None, 
-				V0=None, R0_RECI=None, convert=None, RUN_LOOP=None, queue_from_server=None):
+	def config(self, *, raw=None, 
+		filter_spatial=None, filter_spatial_cutoff=None, butterworth_order=None,
+		filter_temporal=None, filter_temporal_size=None, rw_cutoff=None,
+		V0=None, R0_RECI=None, convert=None, mask=None, 
+		RUN_LOOP=None, queue_from_server=None):
 		if raw is not None:
 			self.my_raw = raw
 		if V0:
@@ -140,8 +149,18 @@ class Proc:
 			self.my_convert = convert
 		if filter_spatial in FILTER_SPATIAL.__members__.values():
 			self.my_filter_spatial = filter_spatial
+		if filter_spatial_cutoff is not None:
+			self.my_SF_D0 = filter_spatial_cutoff
+		if butterworth_order is not None:
+			self.my_BUTTER_ORDER = butterworth_order
 		if filter_temporal in FILTER_TEMPORAL.__members__.values():
 			self.my_filter_temporal = filter_temporal
+		if filter_temporal_size is not None:
+			self.my_LP_SIZE = filter_temporal_size
+		if rw_cutoff is not None:
+			self.my_LP_W = rw_cutoff
+		if mask is not None:
+			self.mask = mask
 		if RUN_LOOP:
 			self.RUN_LOOP = RUN_LOOP
 		if queue_from_server:
@@ -172,6 +191,8 @@ class Proc:
 							idx_out=self.idx_out, filename_id=self.filename_id)
 		else:
 			self.data_setter(data_tmp=self.data_tmp)
+		if self.mask is not None:
+			self.data_reshape *= self.mask
 		if self.my_convert:
 			# for i in range(self.total):
 			# 	self.data_tmp[i] = self.calReciprocalResistance(self.data_tmp[i], self.V0, self.R0_RECI)
@@ -212,26 +233,25 @@ class Proc:
 		else:
 			raise Exception("Unknown spatial filter!")
 
-		row_divide = self.n // 2
-		self.kernel_sf = np.zeros((self.n, self.cols), dtype=float)
+		row_divide = self.n[0] // 2
+		self.kernel_sf = np.zeros((self.n[0], self.cols), dtype=float)
 		for i in range(row_divide + 1):
 			for j in range(self.cols):
 				distance = hypot(i, j)
 				self.kernel_sf[i][j] = freq_window(distance)
-		for i in range(row_divide + 1, self.n):
+		for i in range(row_divide + 1, self.n[0]):
 			for j in range(self.cols):
-				distance = hypot(self.n-i, j)
+				distance = hypot(self.n[0]-i, j)
 				self.kernel_sf[i][j] = freq_window(distance)
 
 	def spatial_filter(self):
 		if self.my_filter_spatial == FILTER_SPATIAL.NONE:
 			return
-		self.data_tmp = self.data_tmp.reshape(self.n, self.n)
-		freq = np.fft.rfft2(self.data_tmp)
+		# self.data_tmp = self.data_tmp.reshape(self.n[0], self.n[1])
+		freq = np.fft.rfft2(self.data_reshape)
 		freq *= self.kernel_sf
 		## must specify shape when the final axis number is odd
-		self.data_tmp = np.fft.irfft2(freq, self.data_tmp.shape)
-		self.data_tmp = self.data_tmp.reshape(self.total)
+		self.data_reshape[:] = np.fft.irfft2(freq, self.data_reshape.shape)
 
 	@staticmethod
 	def getNextIndex(idx, size):

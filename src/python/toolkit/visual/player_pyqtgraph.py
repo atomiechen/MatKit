@@ -194,6 +194,10 @@ class Player3DPyqtgraph(Player3D, QtGui.QWidget):
 		## a root vertical layout
 		layout = QtGui.QVBoxLayout(self)
 		# layout.setContentsMargins(0, 0, 0, 0)
+		
+		## reference size of according to data size
+		ref_size = max(self.N[0], self.N[1])
+		box_size = (self.N[0], self.N[1], ref_size)
 
 		## add 3D plot view
 		view = gl.GLViewWidget()
@@ -201,39 +205,45 @@ class Player3DPyqtgraph(Player3D, QtGui.QWidget):
 		## Create a GL view widget to display data
 		background_color = app.palette().color(QtGui.QPalette.Background)
 		view.setBackgroundColor(background_color)
-		view.setCameraPosition(distance=1.8*self.N)
+		view.setCameraPosition(distance=1.8*ref_size)
 		# view.resize(600, 550)  # resize window
-		view.pan(0, 0, 0.5*self.N)  # move the camera up
+		view.pan(0, 0, 0.5*ref_size)  # move the camera up
+		## rotate camera
+		view.orbit(azim=-30, elev=0)
 		layout.addWidget(view)
 
 		## Add a grid to the view
 		g = gl.GLGridItem()
 		g.setDepthValue(10)  # draw grid after surfaces since they may be translucent
-		g.setSize(self.N, self.N, self.N)
+		g.setSize(*box_size)
 		view.addItem(g)
 
 		## create a surface plot, tell it to use the 'heightColor' shader
 		## since this does not require normal vectors to render (thus we 
 		## can set computeNormals=False to save time when the mesh updates)
-		z_scale = self.N / self.zlim
+		z_scale = box_size[2] / self.zlim
 		pic_surf = gl.GLSurfacePlotItem(shader='heightColor', computeNormals=False, smooth=True)
 		pic_surf.shader()['colorMap'] = array([0.2, 2, 0.5, 0.2, 1, 1, 0.2, 0, 2])
-		pic_surf.translate(-self.N*0.5+0.5, -self.N*0.5+0.5, 0)
+		pic_surf.translate(-self.N[0]*0.5+0.5, -self.N[1]*0.5+0.5, 0)
 		pic_surf.scale(1, 1, z_scale)
 		view.addItem(pic_surf)
 
 		axis = Custom3DAxis(view, color=(0.2,0.2,0.2,.6))
-		axis.setSize(self.N, self.N, self.N)
-		xy_pos = [self.N*0.25, self.N*0.5, self.N*0.75, self.N]
-		ztpos = linspace(0, self.zlim, 6)
-		axis.add_tick_values(xtpos=xy_pos, ytpos=xy_pos, ztpos=ztpos)
+		axis.setSize(*box_size)
+		# x_pos = [self.N[0]*0.25, self.N[0]*0.5, self.N[0]*0.75, self.N[0]]
+		x_pos = arange(1, self.N[0]+1, 1)
+		# y_pos = [self.N[1]*0.25, self.N[1]*0.5, self.N[1]*0.75, self.N[1]]
+		y_pos = arange(1, self.N[1]+1, 1)
+		z_pos = linspace(0, self.zlim, 6)
+		axis.add_tick_values(xtpos=x_pos, ytpos=y_pos, ztpos=z_pos)
 		axis.add_labels()
 		axis.setTickScale(1, 1, z_scale)
-		axis.translate(-self.N*0.5, -self.N*0.5, 0)
+		axis.translate(-self.N[0]*0.5, -self.N[1]*0.5, 0)
 		view.addItem(axis)
 
-		self.x = arange(0, self.N, 1)
-		self.y = arange(self.N-1, -1, -1)
+		self.x = arange(0, self.N[0], 1)
+		# self.y = arange(self.N-1, -1, -1)
+		self.y = arange(0, self.N[1], 1)
 		self.pic_surf = pic_surf
 		self.app = app
 		self.layout = layout

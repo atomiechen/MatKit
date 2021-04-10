@@ -21,8 +21,16 @@ def gen(data):
 			return
 
 def gen_reshape(data, N):
-	while True:
-		try:
-			yield np.reshape(data, (N, N))
-		except GeneratorExit:
-			return
+	try:
+		N[0], N[1]
+		while True:
+			try:
+				yield np.reshape(data, (N[0], N[1]))
+			except GeneratorExit:
+				return
+	except:
+		while True:
+			try:
+				yield np.reshape(data, (N, N))
+			except GeneratorExit:
+				return

@@ -110,10 +110,14 @@ class Player3D:
 	
 	@N.setter
 	def N(self, value):
-		if not isinstance(value, int):
-			raise Exception("N must be int type!")
-		else:
+		if isinstance(value, int):
+			value = [value, value]
+
+		try:
+			value[0], value[1]
 			self._N = value
+		except:
+			raise Exception("invalid N type!")
 
 	@property
 	def generator(self):

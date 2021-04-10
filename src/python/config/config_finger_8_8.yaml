@@ -1,0 +1,100 @@
+## finger sensor
+
+## ~ for defaults
+
+server_mode:
+  ## enable backend service
+  service: true
+  ## make server provide raw data
+  raw: ~
+  ## enable visualization or not (suppress service)
+  visualize: ~
+  ## enumerate all serial ports
+  enumerate: ~
+
+client_mode:
+  ## make client present raw data
+  raw: ~
+  ## interactive command line mode
+  interactive: ~
+
+sensor:
+  ## sensor shape: [16, 16], [8, 8], [6, 24]
+  shape: [8, 8]
+  ## total points, can be set to ~
+  total: 64
+  ## 0/1 mask to exclude non-existent points
+  ## |- for multiline without a newline in the end
+  mask: |-
+    1 1 0 0 0 0 0 0
+    1 1 1 1 0 0 0 0
+    1 1 1 1 1 1 1 0
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 0
+    1 1 1 1 0 0 0 0
+    1 1 0 0 0 0 0 0
+
+serial:
+  ## baudrate: 9600, 250000, 500000, 1000000
+  baudrate: 1000000
+  ## serial port timeout, in seconds
+  timeout: 1
+  ## serial port
+  port: ~
+
+connection:  ## use defaults
+  ## use UDP or UNIX domain socket
+  udp: ~
+  ## udp address format: 127.0.0.1:20503
+  ## UNIX deomain socket address format: /var/tmp/unix.socket.server
+  server_address: ~
+  client_address: ~
+
+process:
+  ## reference voltage: 255, 255/3.6*3.3
+  V0: ~
+  ## constant factor: 1
+  R0_RECI: ~
+  ## convert voltage to resistance: true
+  convert: ~
+  ## spatial filter: ideal, butterworth, gaussian
+  filter_spatial: ~
+  ## spatial filter cut-off freq: 3.5
+  filter_spatial_cutoff: 
+  ## Butterworth filter order: 2
+  butterworth_order: ~
+  ## temporal filter: moving average, rectangular window
+  filter_temporal: ~
+  ## temporal filter size: 15
+  filter_temporal_size: ~
+  ## rectangular window filter cut-off frequency: 0.04
+  rw_cutoff: ~
+  ## interpolation shape, default to sensor.shape
+  interp: ~
+  ## interpolation order: 3
+  interp_order: ~
+  ## filter out blobs: true
+  blob: ~
+  ## total blob number: 3
+  blob_num: ~
+  ## blob filter threshole: 0.1, 0.15
+  threshold: ~
+  ## special check for certain hardwares: false
+  special_check: ~
+  ## value bound for checking cursor moving state: 0
+  bound: ~
+  ## directly map coordinates or relatively
+  direct_map_coor: ~
+  ## use ThinkPad's TrackPoint (red dot) control style
+  trackpoint: ~
+  ## smoothing
+  alpha: ~
+
+visual:
+  ## using pyqtgraph or matplotlib
+  pyqtgraph: false
+  ## z-axis limit: 3, 5
+  zlim: 3
+  ## frame rate: 100
+  fps: 100

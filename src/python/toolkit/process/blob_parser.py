@@ -32,11 +32,12 @@ class BlobParser:
 		self.threshold = 0.1  ## threshold to detect blobs
 		self.total = 3  ## total blobs to detect each frame
 		self.normalize = True  ## normalize parsed coordinates
+		self.special = False  ## special check for certain hardwares
 		self.config(**kwargs)
 
-		self.data2d = np.zeros([N, N], dtype=float)
-		self.flag2d = np.zeros([N, N], dtype=int)
-		self.dataout = np.zeros([N, N], dtype=float)
+		self.data2d = np.zeros([self.n[0], self.n[1]], dtype=float)
+		self.flag2d = np.zeros([self.n[0], self.n[1]], dtype=int)
+		self.dataout = np.zeros([self.n[0], self.n[1]], dtype=float)
 		self.queue = deque()
 		self.weighted_r = 0
 		self.weighted_c = 0
@@ -46,13 +47,15 @@ class BlobParser:
 		self.blob_cnt = 0  ## total parsed blobs
 		self.blob_idx = -1  ## selected blob ID
 
-	def config(self, *, threshold=None, total=None, normalize=None):
+	def config(self, *, threshold=None, total=None, normalize=None, special=None):
 		if threshold is not None:
 			self.threshold = threshold
 		if total is not None:
 			self.total = total
 		if normalize is not None:
 			self.normalize = normalize
+		if special is not None:
+			self.special = special
 
 	def transform(self, data, **kwargs):
 		"""transform data to that only have a blob filtered out
@@ -117,7 +120,7 @@ class BlobParser:
 				break
 		row, col, val = self.filter()
 		if self.normalize:
-			return row/(self.n-1), col/(self.n-1), val
+			return row/(self.n[0]-1), col/(self.n[1]-1), val
 		else:
 			return row, col, val
 
@@ -154,7 +157,7 @@ class BlobParser:
 			yield self.parse(data, **kwargs)
 
 	def check_pos(self, row, col, threshold, control, max_gradient, cur_value, blob_idx):
-		if row < 0 or row >= self.n or col < 0 or col >= self.n:
+		if row < 0 or row >= self.n[0] or col < 0 or col >= self.n[1]:
 			return False, 0
 		if self.flag2d[row][col] != -1:
 			return False, 0
@@ -174,7 +177,7 @@ class BlobParser:
 		r_sum = 0
 		c_sum = 0
 		w_sum = 0
-		max_gradient = 0.01 * 15 / (self.n-1)
+		max_gradient = 0.01 * 15 / (max(self.n[0],self.n[1])-1)
 		# max_gradient = 0
 		self.queue.clear()
 		self.queue.append((row, col))
@@ -202,21 +205,10 @@ class BlobParser:
 	def filter(self):
 		blob_idx = -1  # idx starts from 0
 		if self.blob_cnt >= 1:
-			blob_idx = 0
-			## special case to exclude due to hardware problem
-			if self.centers[0][1] <= 0.06 * (self.n - 1):
-				blob_idx = -1
-				# print(f"sepcial case {self.centers[0][1]} {self.blob_cnt}")
-				if self.blob_cnt >= 2:
-					for i in range(1, self.blob_cnt):
-						if self.centers[i][1] >= 0.93 * (self.n - 1):
-							blob_idx = i
-							# print(f"  find correct blob {i} {self.centers[0][1]} {self.centers[i][1]} {self.blob_cnt}")
-							break
-						# else:
-							# print(f" no {i} {self.centers[0][1]} {self.centers[i][1]} {self.blob_cnt}")
-			# else:
-				# print(f"ordinary {self.centers[0][1]} {self.blob_cnt}")
+			if self.special:
+				blob_idx = self.special_check()
+			else:
+				blob_idx = 0
 
 		self.blob_idx = blob_idx
 		if blob_idx >= 0:
@@ -227,13 +219,30 @@ class BlobParser:
 			self.parsed_value = 0
 		return self.weighted_r, self.weighted_c, self.parsed_value
 
+	def special_check(self):
+		## special case to exclude due to hardware problem
+		if self.centers[0][1] <= 0.06 * (self.n[1] - 1):
+			blob_idx = -1
+			# print(f"sepcial case {self.centers[0][1]} {self.blob_cnt}")
+			if self.blob_cnt >= 2:
+				for i in range(1, self.blob_cnt):
+					if self.centers[i][1] >= 0.93 * (self.n[1] - 1):
+						blob_idx = i
+						# print(f"  find correct blob {i} {self.centers[0][1]} {self.centers[i][1]} {self.blob_cnt}")
+						break
+					# else:
+						# print(f" no {i} {self.centers[0][1]} {self.centers[i][1]} {self.blob_cnt}")
+		# else:
+			# print(f"ordinary {self.centers[0][1]} {self.blob_cnt}")
+		return blob_idx
+
 	def print_result(self):
 		point_r = int(round(self.weighted_r))
 		point_c = int(round(self.weighted_c))
 		os.system("clear")
 		# os.system("cls")
-		for row in range(self.n-1, -1, -1):
-			for col in range(self.n):
+		for row in range(self.n[0]-1, -1, -1):
+			for col in range(self.n[1]):
 				flag = self.flag2d[row][col]
 				if flag == 0:
 					print("－", end='')

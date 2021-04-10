@@ -21,7 +21,11 @@ def main(args):
 	if args.output:
 		print("Data process mode:")
 
-		my_processor = Processor(args.interp, noblob=args.noblob, threshold=args.threshold)
+		my_processor = Processor(
+			args.interp, 
+			blob=not args.noblob, 
+			threshold=args.threshold
+		)
 		my_processor.print_info()
 
 		print(f"writing to file: {args.output}")

@@ -30,18 +30,27 @@ class Player3DMatplot(Player3D):
 		"""
 		super().__init__(*args, **kwargs)
 		### ref: https://stackoverflow.com/questions/5179589/continuous-3d-plotting-i-e-figure-update-using-python-matplotlib
-		self.systemSideLength = self.N
 		self.lowerCutoffLength = 1
 		self.fig = plt.figure()
-		self.fig.canvas.set_window_title('3D data')
+		## new API to set window title
+		self.manager = plt.get_current_fig_manager()
+		self.manager.set_window_title('3D data')
 		self.ax = self.fig.add_subplot( 111, projection='3d' )
 		self.ax.set_zlim3d( 0, self.zlim )
 
-		rng = arange( 0, self.systemSideLength, self.lowerCutoffLength )
-		self.X, self.Y = meshgrid(rng,rng)
-
+		rng1 = arange( 0, self.N[1], self.lowerCutoffLength )
+		rng2 = arange( 0, self.N[0], self.lowerCutoffLength )
+		self.X, self.Y = meshgrid(rng1, rng2)
 		self.ax.w_zaxis.set_major_locator( LinearLocator( 10 ) )
 		self.ax.w_zaxis.set_major_formatter( FormatStrFormatter( '%.03f' ) )
+		## ref: https://matplotlib.org/stable/api/_as_gen/mpl_toolkits.mplot3d.axes3d.Axes3D.html#mpl_toolkits.mplot3d.axes3d.Axes3D.set_box_aspect
+		self.ax.set_box_aspect((self.N[1], self.N[0], max(self.N[0], self.N[1])/4*3))
+
+		## invert x axis
+		self.ax.invert_xaxis()
+
+		## rotate the camera
+		self.ax.azim += 180  ## = 120
 
 		heightR = zeros( self.X.shape )
 		self.surf = self.ax.plot_surface( 

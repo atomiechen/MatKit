@@ -29,7 +29,7 @@ class Interpolator:
 		self.order = 3
 		self.config(**kwargs)
 
-		self.output = np.zeros([N, N], dtype=float)
+		self.output = np.zeros(self.n, dtype=float)
 
 	def config(self, *, order=None):
 		if order is not None:
@@ -53,7 +53,7 @@ class Interpolator:
 		shape = np.shape(data)
 		if shape[0] != shape[1]:
 			raise Exception(f"Not a square array! get {shape[0]} * {shape[1]} instead")
-		ratio = self.n / shape[0]
+		ratio = [self.n[0]/shape[0], self.n[1]/shape[1]]
 		if ratio == 1:  # do nothing
 			return data
 		else:  # zoom

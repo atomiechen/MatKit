@@ -20,6 +20,8 @@ import errno
 from struct import calcsize, pack, unpack, unpack_from
 from typing import Iterable
 
+from .tools import parse_ip_port, check_shape
+
 
 class CMD(IntEnum):
 
@@ -114,14 +116,15 @@ class Uclient:
 		self.server_addr = server_addr
 
 		self.binded = False
-		self.total = self.N * self.N
+		self.N = check_shape(self.N)
+		self.total = self.N[0] * self.N[1]
 		self.data_parse = zeros(self.total, dtype=float)
-		self.data_reshape = self.data_parse.reshape(self.N, self.N)
+		self.data_reshape = self.data_parse.reshape(self.N[0], self.N[1])
 
 		self.init_socket()
 
 	def config(self, *, n=None, udp=None, timeout=None):
-		if n:
+		if n is not None:
 			self.N = n
 		if udp is not None:
 			self.UDP = udp
@@ -162,6 +165,7 @@ class Uclient:
 		if self.client_addr:
 			## check if ip address needs to be filled
 			if self.UDP:
+				self.client_addr = parse_ip_port(self.client_addr)
 				tmp_addr = list(self.client_addr)
 				if tmp_addr[0] is None:
 					tmp_addr[0] = self.CLIENT_HOST
@@ -192,6 +196,7 @@ class Uclient:
 		else:
 			## check if ip-port address needs to be filled
 			if self.UDP:
+				self.server_addr = parse_ip_port(self.server_addr)
 				tmp_addr = list(self.server_addr)
 				if tmp_addr[0] is None:
 					tmp_addr[0] = self.SERVER_HOST
