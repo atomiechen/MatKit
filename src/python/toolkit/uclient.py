@@ -20,7 +20,7 @@ import errno
 from struct import calcsize, pack, unpack, unpack_from
 from typing import Iterable
 
-from .tools import parse_ip_port, check_shape
+from .tools import check_shape
 
 
 class CMD(IntEnum):
@@ -165,7 +165,6 @@ class Uclient:
 		if self.client_addr:
 			## check if ip address needs to be filled
 			if self.UDP:
-				self.client_addr = parse_ip_port(self.client_addr)
 				tmp_addr = list(self.client_addr)
 				if tmp_addr[0] is None:
 					tmp_addr[0] = self.CLIENT_HOST
@@ -196,7 +195,6 @@ class Uclient:
 		else:
 			## check if ip-port address needs to be filled
 			if self.UDP:
-				self.server_addr = parse_ip_port(self.server_addr)
 				tmp_addr = list(self.server_addr)
 				if tmp_addr[0] is None:
 					tmp_addr[0] = self.SERVER_HOST

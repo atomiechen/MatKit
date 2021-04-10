@@ -11,7 +11,10 @@ import traceback
 
 from toolkit.server import Proc, Userver, DataSetterSerial, DataSetterFile
 from toolkit.server import FLAG, CustomException
-from toolkit.tools import parse_ip_port, load_config, blank_config, check_shape, parse_mask
+from toolkit.tools import (
+	parse_ip_port, load_config, blank_config, check_shape, parse_mask, 
+	check_config
+)
 
 
 N = 16  # sensor side length
@@ -145,12 +148,7 @@ def main(args):
 		config['server_mode']['visualize'] = args.visualize
 	if config['server_mode']['enumerate'] is None:
 		config['server_mode']['enumerate'] = args.enumerate
-
-	## some modifications
-	config['sensor']['shape'] = check_shape(config['sensor']['shape'])
-	config['sensor']['total'] = config['sensor']['shape'][0] * config['sensor']['shape'][1]
-	if config['sensor']['mask'] is not None:
-		config['sensor']['mask'] = parse_mask(config['sensor']['mask'])
+	check_config(config)
 
 	## enumerate serial ports
 	if config['server_mode']['enumerate']:

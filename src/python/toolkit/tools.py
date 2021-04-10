@@ -9,29 +9,6 @@ data = pkgutil.get_data(__name__, TEMPLATE_PATH)
 blank = yaml.safe_load(data)
 
 
-## recursion
-def check_config(config):
-	def recurse(dict_default, dict_target):
-		for key in dict_default:
-			if key in dict_target:
-				if isinstance(dict_default[key], dict):
-					recurse(dict_default[key], dict_target[key])
-			else:
-				dict_target[key] = copy.deepcopy(dict_default[key])
-	recurse(blank, config)
-
-
-def load_config(filename):
-	with open(filename) as fin:
-		config = yaml.safe_load(fin)
-	check_config(config)
-	return config
-
-
-def blank_config():
-	return copy.deepcopy(blank)
-
-
 def parse_ip_port(content):
 	paras = content.split(":")
 	ip = paras[0]
@@ -59,6 +36,42 @@ def parse_mask(string_in):
 	mask = [row.split() for row in rows]
 	mask = np.array(mask, dtype=int)
 	return mask
+
+
+## recursion
+def check_config(config):
+	def recurse(dict_default, dict_target):
+		for key in dict_default:
+			if key in dict_target:
+				if isinstance(dict_default[key], dict):
+					recurse(dict_default[key], dict_target[key])
+			else:
+				dict_target[key] = copy.deepcopy(dict_default[key])
+	## recurse to fill empty fields
+	recurse(blank, config)
+	## some transformation for certain fields
+	if config['sensor']['shape'] is not None:
+		config['sensor']['shape'] = check_shape(config['sensor']['shape'])
+		config['sensor']['total'] = config['sensor']['shape'][0] * config['sensor']['shape'][1]
+	if config['process']['interp'] is not None:
+		config['process']['interp'] = check_shape(config['process']['interp'])
+	if isinstance(config['sensor']['mask'], str):
+		config['sensor']['mask'] = parse_mask(config['sensor']['mask'])
+	if isinstance(config['connection']['server_address'], str):
+		config['connection']['server_address'] = parse_ip_port(config['connection']['server_address'])
+	if isinstance(config['connection']['client_address'], str):
+		config['connection']['client_address'] = parse_ip_port(config['connection']['client_address'])
+
+
+def load_config(filename):
+	with open(filename) as fin:
+		config = yaml.safe_load(fin)
+	check_config(config)
+	return config
+
+
+def blank_config():
+	return copy.deepcopy(blank)
 
 
 if __name__ == '__main__':

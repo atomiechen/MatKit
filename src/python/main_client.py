@@ -7,7 +7,9 @@ import copy
 
 from toolkit.uclient import CMD, Uclient
 from toolkit.process import Processor
-from toolkit.tools import parse_ip_port, load_config, blank_config, check_shape
+from toolkit.tools import (
+	parse_ip_port, load_config, blank_config, check_shape, check_config
+)
 
 N = 16
 ZLIM = 3
@@ -64,14 +66,11 @@ def main(args):
 		config['client_mode']['raw'] = args.raw
 	if config['client_mode']['interactive'] is None:
 		config['client_mode']['interactive'] = args.interactive
+	check_config(config)
 
 	## some modifications
-	config['sensor']['shape'] = check_shape(config['sensor']['shape'])
 	if config['process']['interp'] is None:
 		config['process']['interp'] = copy.deepcopy(config['sensor']['shape'])
-	else:
-		config['process']['interp'] = check_shape(config['process']['interp'])
-	print(config)
 
 	with Uclient(
 		config['connection']['client_address'], 

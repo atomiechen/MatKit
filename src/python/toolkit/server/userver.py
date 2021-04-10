@@ -115,7 +115,6 @@ class Userver:
 		else:
 			## check if ip-port address needs to be filled
 			if self.UDP:
-				self.server_addr = parse_ip_port(self.server_addr)
 				tmp_addr = list(self.server_addr)
 				if tmp_addr[0] is None:
 					tmp_addr[0] = self.SERVER_HOST
