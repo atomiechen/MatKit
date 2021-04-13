@@ -80,11 +80,13 @@ process:
   threshold: ~
   ## special check for certain hardwares: false
   special_check: ~
+
+pointing:
   ## value bound for checking cursor moving state: 0
   bound: ~
-  ## directly map coordinates or relatively
-  mapcoor: ~
-  ## use ThinkPad's TrackPoint control style
+  ## directly map coordinates or relatively (suppress trackpoint)
+  direct_map: ~
+  ## use ThinkPad's TrackPoint (red dot) control style
   trackpoint: ~
   ## smoothing
   alpha: ~
