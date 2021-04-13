@@ -9,3 +9,5 @@ main
 *.png
 # ignore files with 'tmp' prefix
 tmp*
+*.pkl
+/all_data

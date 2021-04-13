@@ -11,6 +11,8 @@ from .flag import FLAG, FLAG_REC
 from .exception import SerialTimeout
 from ..tools import check_shape
 
+import joblib
+
 
 class FILTER_SPATIAL(Enum):
 	NONE = "none"  # no spatial filter
@@ -50,14 +52,6 @@ class DataSetterSerial:
 					raise SerialTimeout
 				data_tmp[:self.total] = list(data)
 				break
-		if "filename" in kwargs.keys():
-			filename = kwargs['filename'].decode().split('.')
-			filename[0] += ('_' + str(kwargs['filename_id']))
-			filename = '.'.join(filename)
-			with open(filename, 'a', encoding='utf-8') as f:
-				for d in data_tmp:
-					f.write(str(int(d)) + ',')
-				f.write(str(kwargs['idx_out'].value) + ',' + str(int(time.time() * (10**6))) + ',\n')
 
 
 class DataSetterFile:
@@ -106,6 +100,10 @@ class Proc:
 
 	filename_id = 0
 
+	clf = None
+
+	five_data_to_predict = []
+
 	def __init__(self, n, data_setter, data_out, data_raw, idx_out, **kwargs):
 		## sensor info
 		self.n = check_shape(n)
@@ -132,6 +130,8 @@ class Proc:
 		self.queue_from_server = None
 
 		self.config(**kwargs)
+
+        self.clf = joblib.load("main.pkl")
 
 	def config(self, *, raw=None, warm_up=None,
 		V0=None, R0_RECI=None, convert=None, mask=None, 
@@ -192,11 +192,11 @@ class Proc:
 		np_array *= r0_reci
 
 	def get_raw_frame(self):
-		if self.filename:
-			self.data_setter(data_tmp=self.data_tmp, filename=self.filename,
-							idx_out=self.idx_out, filename_id=self.filename_id)
-		else:
-			self.data_setter(data_tmp=self.data_tmp)
+		# if self.filename:
+		# 	self.data_setter(data_tmp=self.data_tmp, filename=self.filename,
+		# 					idx_out=self.idx_out, filename_id=self.filename_id)
+		# else:
+		self.data_setter(data_tmp=self.data_tmp)
 		if self.mask is not None:
 			self.data_reshape *= self.mask
 		if self.my_convert:
@@ -213,6 +213,25 @@ class Proc:
 			print(f"  frame rate: {frames/duration:.3f} fps  runing time: {run_duration:.3f} s")
 			self.last_frame_idx = self.idx_out.value
 			self.last_time = self.cur_time
+		if self.filename:
+			# filename = self.filename.split('.')
+			# filename[0] += ('_' + str(kwargs['filename_id']))
+			# filename = '.'.join(filename)
+			with open(self.filename, 'a', encoding='utf-8') as f:
+				for d in self.data_out:
+					f.write(str(d) + ',')
+				# f.write(str(self.idx_out) + ',' + str(self.cur_time) + ',\n')
+				f.write('\n')
+		if len(self.five_data_to_predict) < 320:
+			for d in self.data_out:
+				self.five_data_to_predict.append(d)
+		else:
+			self.five_data_to_predict = self.five_data_to_predict[64:]
+			for d in self.data_out:
+				self.five_data_to_predict.append(d)
+			print(self.clf.predict([self.five_data_to_predict]))
+
+
 
 	def prepare_spatial(self):
 		def gaussianLP(distance):
@@ -395,8 +414,9 @@ class Proc:
 			if self.queue_from_server is not None:
 				try:
 					flag = self.queue_from_server.get_nowait()
+					print(str(flag))
 					if flag == FLAG.FLAG_STOP:
-						break
+						pass
 					if flag == FLAG_REC.FLAG_REC_DATA:
 						self.RUN_LOOP = True
 						self.my_raw = False
@@ -404,7 +424,6 @@ class Proc:
 							filename = self.queue_from_server.get_nowait()
 							if filename is not None:
 								self.filename = filename
-								break
 					elif flag == FLAG_REC.FLAG_REC_RAW:
 						self.RUN_LOOP = True
 						self.my_raw = True
@@ -412,13 +431,17 @@ class Proc:
 							filename = self.queue_from_server.get_nowait()
 							if filename is not None:
 								self.filename = filename
-								break
 					elif flag == FLAG_REC.FLAG_REC_STOP:
 						self.RUN_LOOP = False
 						self.filename = None
 						self.filename_id = 0
 					elif flag == FLAG_REC.FLAG_REC_BREAK:
 						self.filename_id += 1
+					else:
+						filename = str(flag)
+						print("filename: " + filename)
+						if filename is not None:
+								self.filename = filename
 				except Empty:
 					pass
 

@@ -153,12 +153,12 @@ class Userver:
 			reply = pack("=B", 0) + self.data[1:]
 			self.my_socket.sendto(reply, self.client_addr)
 			self.queue_to_main_client.put(FLAG_REC.FLAG_REC_DATA)
-			self.queue_to_main_client.put(self.data[1:])
+			self.queue_to_main_client.put(str(self.data[1:], encoding = "utf-8"))
 		elif self.data[0] == CMD.REC_RAW:
 			reply = pack("=B", 0) + self.data[1:]
 			self.my_socket.sendto(reply, self.client_addr)
 			self.queue_to_main_client.put(FLAG_REC.FLAG_REC_RAW)
-			self.queue_to_main_client.put(self.data[1:])
+			self.queue_to_main_client.put(str(self.data[1:], encoding = "utf-8"))
 		elif self.data[0] == CMD.REC_STOP:
 			reply = pack("=B", 0)
 			self.my_socket.sendto(reply, self.client_addr)
@@ -170,7 +170,7 @@ class Userver:
 		elif self.data[0] == CMD.REC_BREAK:
 			reply = pack("=B", 0)
 			self.my_socket.sendto(reply, self.client_addr)
-			self.queue_to_main_client.put(FLAG_REC.FLAG_REC_BREAK)
+			self.queue_to_main_client.put_nowait(FLAG_REC.FLAG_REC_BREAK)
 
 	def print_service(self):
 		if self.UDP:
