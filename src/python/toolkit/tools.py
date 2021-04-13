@@ -84,6 +84,14 @@ def blank_config():
 	return copy.deepcopy(blank)
 
 
+def print_sensor(config, tab=''):
+	print(f"{tab}Sensor shape: {config['sensor']['shape']}")
+	print(f"{tab}Sensor size:  {config['sensor']['total']}")
+	print(f"{tab}Sensor mask:  {'' if config['sensor']['mask'] is not None else None}")
+	if config['sensor']['mask'] is not None:
+		print(f"{config['sensor']['mask']}")
+
+
 ## ref: https://stackoverflow.com/a/2371789/11854304
 class NumericStringParser(object):
     '''

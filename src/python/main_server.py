@@ -13,7 +13,7 @@ from toolkit.server import Proc, Userver, DataSetterSerial, DataSetterFile
 from toolkit.server import FLAG, CustomException
 from toolkit.tools import (
 	parse_ip_port, load_config, blank_config, check_shape, parse_mask, 
-	check_config
+	check_config, print_sensor
 )
 
 
@@ -109,14 +109,6 @@ def task_file(paras):
 	## TODO
 	pass
 
-def print_sensor_info(config):
-	# print(config)
-	print(f"Sensor shape: {config['sensor']['shape']}")
-	print(f"Sensor size:  {config['sensor']['total']}")
-	print(f"Sensor mask:  {'None' if config['sensor']['mask'] is None else ''} ")
-	if config['sensor']['mask'] is not None:
-		print(config['sensor']['mask'])
-
 def main(args):
 	## load config and combine commandline arguments
 	if args.config:
@@ -158,7 +150,7 @@ def main(args):
 		enumerate_ports()
 		return
 
-	print_sensor_info(config)
+	print_sensor(config)
 
 	## shared variables
 	data_out = Array('d', config['sensor']['total'])  # d for double
