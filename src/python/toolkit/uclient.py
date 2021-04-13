@@ -120,6 +120,7 @@ class Uclient:
 		self.total = self.N[0] * self.N[1]
 		self.data_parse = zeros(self.total, dtype=float)
 		self.data_reshape = self.data_parse.reshape(self.N[0], self.N[1])
+		self.frame_idx = 0
 
 		self.init_socket()
 
@@ -255,8 +256,8 @@ class Uclient:
 		"""		
 		result = unpack_from(f"={self.total}di", self.data)
 		self.data_parse[:] = result[:-1]
-		frame_idx = result[-1]
-		return self.data_parse, frame_idx
+		self.frame_idx = result[-1]
+		return self.data_parse, self.frame_idx
 
 	def recv_string(self):
 		"""receive a string from server
@@ -302,6 +303,22 @@ class Uclient:
 		elif my_filter == 3:  # sinc low-pass
 			paras += unpack_from("=id", self.data, start)
 		return paras
+
+	def fetch_frame(self, input_arg=CMD.DATA):
+		try:
+			self.send_cmd(input_arg)
+			self.recv_frame()
+		except:
+			pass
+		return self.data_reshape
+
+	def fetch_frame_and_index(self, input_arg=CMD.DATA):
+		try:
+			self.send_cmd(input_arg)
+			self.recv_frame()
+		except:
+			pass
+		return self.data_reshape, self.frame_idx
 
 	def gen(self, input_arg=CMD.DATA):
 		"""generate a data generator given specific command
