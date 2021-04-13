@@ -13,14 +13,14 @@ from ..tools import check_shape
 
 
 class FILTER_SPATIAL(Enum):
-	NONE = None  # no spatial filter
+	NONE = "none"  # no spatial filter
 	IDEAL = "ideal"  # ideal kernel
 	BUTTERWORTH = "butterworth"  # butterworth kernel
 	GAUSSIAN = "gaussian"  # gaussian kernel
 
 
 class FILTER_TEMPORAL(Enum):
-	NONE = None  # no temporal filter
+	NONE = "none"  # no temporal filter
 	MA = "moving average"  # moving average
 	RW = "rectangular window"  # rectangular window filter (sinc)
 
@@ -85,18 +85,17 @@ class Proc:
 	R0_RECI = 1  ## a constant to multiply the value
 
 	## process parameters
-	SAFE_FILTER_SIZE = 100
 	my_SF_D0 = 3.5
 	my_BUTTER_ORDER = 2
 	my_LP_SIZE = 15
 	my_LP_W = 0.04
 	my_INIT_CALI_FRAMES = 200
-	my_WIN_SIZE = 10000
+	my_WIN_SIZE = 0
 
 	## fps checking
 	FPS_CHECK_TIME = 1  # seconds of interval to check fps
 
-	## for warm up, make CPU schedule more time for serial reading
+	## for warming up, make CPU schedule more time for serial reading
 	WARM_UP = 1  # seconds
 
 	## run loop or wait for waking up from server
@@ -134,19 +133,24 @@ class Proc:
 
 		self.config(**kwargs)
 
-	def config(self, *, raw=None, 
+	def config(self, *, raw=None, warm_up=None,
+		V0=None, R0_RECI=None, convert=None, mask=None, 
 		filter_spatial=None, filter_spatial_cutoff=None, butterworth_order=None,
 		filter_temporal=None, filter_temporal_size=None, rw_cutoff=None,
-		V0=None, R0_RECI=None, convert=None, mask=None, 
+		cali_frames=None, cali_win_size=None,
 		RUN_LOOP=None, queue_from_server=None):
 		if raw is not None:
 			self.my_raw = raw
+		if warm_up is not None:
+			self.WARM_UP = warm_up
 		if V0:
 			self.V0 = V0
 		if R0_RECI:
 			self.R0_RECI = R0_RECI
 		if convert is not None:
 			self.my_convert = convert
+		if mask is not None:
+			self.mask = mask
 		if filter_spatial in FILTER_SPATIAL.__members__.values():
 			self.my_filter_spatial = filter_spatial
 		if filter_spatial_cutoff is not None:
@@ -159,8 +163,10 @@ class Proc:
 			self.my_LP_SIZE = filter_temporal_size
 		if rw_cutoff is not None:
 			self.my_LP_W = rw_cutoff
-		if mask is not None:
-			self.mask = mask
+		if cali_frames is not None:
+			self.my_INIT_CALI_FRAMES = cali_frames
+		if cali_win_size is not None:
+			self.my_WIN_SIZE = cali_win_size
 		if RUN_LOOP:
 			self.RUN_LOOP = RUN_LOOP
 		if queue_from_server:
