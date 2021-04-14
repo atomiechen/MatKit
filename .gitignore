@@ -1,13 +1,18 @@
 __pycache__
 *.o
+
+## ignore files with 'tmp' prefix
+tmp*
+
+## ignore binaries
 main
 *.pyc
+
+## ignore data
 *.csv
 *.txt
 *.xlsx
 *.xls
 *.png
-# ignore files with 'tmp' prefix
-tmp*
 *.pkl
-/all_data
+all_data/
