@@ -16,3 +16,5 @@ main
 *.png
 *.pkl
 all_data/
+
+.idea/
