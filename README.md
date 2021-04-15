@@ -166,7 +166,17 @@ UNIX domain socket通信地址：`/var/tmp/unix.socket.server`
 
 ### 环境配置
 
-需要使用python3，并安装如下python库：
+#### 一键安装
+
+需要使用python3，可以在根目录下一键配置（推荐使用虚拟环境）：
+
+```sh
+pip3 install -r requirements.txt
+```
+
+#### 手动安装
+
+也可以手动安装如下python库：
 
 - `numpy`，数值计算
 
@@ -188,18 +198,18 @@ UNIX domain socket通信地址：`/var/tmp/unix.socket.server`
   pip3 install pyserial
   ```
 
-可视化相关：
+可视化相关：以下二者至少选一个，`matplotlib`美观，`pyqtgraph`速度快
 
-- `matplotlib`
+- `matplotlib`：版本 >= 3.3
 
   ```sh
-  pip3 install matplotlib
+  pip3 install matplotlib>=3.3
   ```
 
-- `pyqtgraph`
+- `pyqtgraph`：版本 0.11.\*
 
   ```sh
-  pip3 install pyqtgraph
+  pip3 install pyqtgraph=0.11.*
   ```
 
   - Mac上需要用如下方式安装以确保3D显示正常（采用上面的方式其实也可，不过3D显示会只占用窗口的1/4面积）：
@@ -207,26 +217,152 @@ UNIX domain socket通信地址：`/var/tmp/unix.socket.server`
     ```sh
     pip3 install git+https://github.com/pyqtgraph/pyqtgraph
     ```
+    
+  - 还需要安装`pyopengl`，`pyqtgraph`的3D可视化依赖
 
-- `pyopengl`，`pyqtgraph`的3D可视化依赖
+    ```sh
+    pip3 install pyopengl
+    ```
 
-  ```sh
-  pip3 install pyopengl
-  ```
+  - 还需要安装`pyqt5`，`pyqtgraph`的3D可视化依赖，具体版本和Python版本有关（参见https://github.com/pyqtgraph/pyqtgraph#qt-bindings-test-matrix）
 
-- `pyqt5`，`pyqtgraph`的3D可视化依赖
+    ```sh
+    pip3 install pyqt5
+    ```
 
-  ```sh
-  pip3 install pyqt5
-  ```
+模拟计算机输入设备（鼠标键盘等）：`PyAutoGUI`
 
-可选：
+```sh
+pip3 install pyautogui
+```
+
+可选库：
 
 - Windows平台可安装`pyreadline`，方便程序中命令行文本输入时按上下键切换到历史输入
 
   ```sh
   pip3 install pyreadline
   ```
+
+
+
+### YAML配置文件
+
+可以给程序指定YAML格式的配置文件，程序可以自动读取配置，而不需要在命令行手动一一指定，且服务端、客户端可共用。
+
+一个样例如下：
+
+```yaml
+## finger sensor
+
+## ~ for defaults
+
+server_mode:
+  ## enable backend service
+  service: true
+  ## make server provide raw data
+  raw: ~
+  ## enable visualization or not (suppress service)
+  visualize: ~
+  ## enumerate all serial ports
+  enumerate: ~
+
+client_mode:
+  ## make client present raw data
+  raw: ~
+  ## interactive command line mode
+  interactive: ~
+
+sensor:
+  ## sensor shape: [16, 16], [8, 8], [6, 24]
+  shape: [8, 8]
+  ## total points, can be set to ~
+  total: 64
+  ## 0/1 mask to exclude non-existent points
+  ## |- for multiline without a newline in the end
+  mask: |-
+    1 1 0 0 0 0 0 0
+    1 1 1 1 0 0 0 0
+    1 1 1 1 1 1 1 0
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 0
+    1 1 1 1 0 0 0 0
+    1 1 0 0 0 0 0 0
+
+serial:
+  ## baudrate: 9600, 250000, 500000, 1000000
+  baudrate: 1000000
+  ## serial port timeout, in seconds
+  timeout: 1
+  ## serial port
+  port: ~
+
+connection:  ## use defaults
+  ## use UDP or UNIX domain socket
+  udp: ~
+  ## udp address format: 127.0.0.1:20503
+  ## UNIX deomain socket address format: /var/tmp/unix.socket.server
+  server_address: ~
+  client_address: ~
+
+process:
+  ## reference voltage: 255, 255/3.6*3.3
+  V0: 255/3.6*3.3
+  ## constant factor: 1
+  R0_RECI: ~
+  ## convert voltage to resistance: true
+  convert: ~
+  ## time of warming up in seconds: 1
+  warm_up: ~
+  ## spatial filter: none, ideal, butterworth, gaussian
+  filter_spatial: ~
+  ## spatial filter cut-off freq: 3.5
+  filter_spatial_cutoff: 
+  ## Butterworth filter order: 2
+  butterworth_order: ~
+  ## temporal filter: none, moving average, rectangular window
+  filter_temporal: ~
+  ## temporal filter size: 15
+  filter_temporal_size: ~
+  ## rectangular window filter cut-off frequency: 0.04
+  rw_cutoff: ~
+  ## calibrative frames, 0 for no calibration: 0, 200
+  cali_frames: ~
+  ## calibration frame window size, 0 for static and >0 for dynamic: 0, 10000
+  cali_win_size: ~
+  ## interpolation shape, default to sensor.shape
+  interp: ~
+  ## interpolation order: 3
+  interp_order: ~
+  ## filter out blobs: true
+  blob: ~
+  ## total blob number: 3
+  blob_num: ~
+  ## blob filter threshole: 0.1, 0.15
+  threshold: ~
+  ## special check for certain hardwares: false
+  special_check: ~
+
+pointing:
+  ## value bound for checking cursor moving state: 0
+  bound: ~
+  ## directly map coordinates or relatively (suppress trackpoint)
+  direct_map: ~
+  ## use ThinkPad's TrackPoint (red dot) control style
+  trackpoint: ~
+  ## smoothing
+  alpha: ~
+
+visual:
+  ## using pyqtgraph or matplotlib
+  pyqtgraph: false
+  ## z-axis limit: 3, 5
+  zlim: 3
+  ## frame rate: 100
+  fps: 100
+
+```
 
 
 
@@ -237,8 +373,9 @@ C++后端服务程序的Python迁移版，代码入口是`main_server.py`。
 运行方式：
 
 ```
-usage: main_server.py [-h] [-e] [-p PORT] [-b BAUDRATE] [-t TIMEOUT] [-n N] [-s]
-                      [-a ADDRESS] [-u] [-r] [-nc] [-v] [-f FPS] [--pyqtgraph]
+usage: main_server.py [-h] [-e] [-p PORT] [-b BAUDRATE] [-t TIMEOUT]
+                      [-n N [N ...]] [-s] [-a ADDRESS] [-u] [-r] [-nc] [-v]
+                      [-z ZLIM] [-f FPS] [--pyqtgraph] [--config CONFIG] [-d]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -246,7 +383,7 @@ optional arguments:
   -p PORT               specify serial port (default: None)
   -b BAUDRATE           specify baudrate (default: 500000)
   -t TIMEOUT            specify timeout in seconds (default: 1)
-  -n N                  specify sensor size (default: 16)
+  -n N [N ...]          specify sensor shape (default: [16])
   -s, --service         run service (default: False)
   -a ADDRESS, --address ADDRESS
                         specify server socket address (default: None)
@@ -255,8 +392,11 @@ optional arguments:
   -nc, --no_convert     do not apply voltage-resistance conversion (default:
                         False)
   -v, --visualize       enable visualization (default: False)
+  -z ZLIM, --zlim ZLIM  z-axis limit (default: 3)
   -f FPS                frames per second (default: 100)
   --pyqtgraph           use pyqtgraph to plot (default: False)
+  --config CONFIG       specify configuration file (default: None)
+  -d, --debug           debug mode (default: False)
 ```
 
 
@@ -272,23 +412,27 @@ optional arguments:
 代码主入口是`main_client.py`，运行方式：
 
 ```
-usage: main_client.py [-h] [-s SERVER_ADDR] [-c CLIENT_ADDR] [-u] [-r] [-n N]
-                      [--interp INTERP] [--noblob] [--th THRESHOLD] [-i]
-                      [-f FPS] [-m]
+usage: main_client.py [-h] [-s SERVER_ADDR] [-c CLIENT_ADDR] [-u] [-r]
+                      [-n N [N ...]] [--interp INTERP [INTERP ...]]
+                      [--noblob] [--th THRESHOLD] [-i] [-z ZLIM] [-f FPS]
+                      [-m] [--config CONFIG]
 
 optional arguments:
-  -h, --help         show this help message and exit
-  -s SERVER_ADDR     specify server socket address (default: None)
-  -c CLIENT_ADDR     specify client socket address (default: None)
-  -u, --udp          use UDP protocol (default: False)
-  -r, --raw          plot raw data (default: False)
-  -n N               sensor side size (default: 16)
-  --interp INTERP    interpolated side size (default: None)
-  --noblob           do not filter out blob (default: False)
-  --th THRESHOLD     blob filter threshold (default: 0.15)
-  -i, --interactive  interactive mode (default: False)
-  -f FPS             frames per second (default: 194)
-  -m, --matplot      use mathplotlib to plot (default: False)
+  -h, --help            show this help message and exit
+  -s SERVER_ADDR        specify server socket address (default: None)
+  -c CLIENT_ADDR        specify client socket address (default: None)
+  -u, --udp             use UDP protocol (default: False)
+  -r, --raw             plot raw data (default: False)
+  -n N [N ...]          specify sensor shape (default: [16])
+  --interp INTERP [INTERP ...]
+                        interpolated shape (default: None)
+  --noblob              do not filter out blob (default: False)
+  --th THRESHOLD        blob filter threshold (default: 0.15)
+  -i, --interactive     interactive mode (default: False)
+  -z ZLIM, --zlim ZLIM  z-axis limit (default: 3)
+  -f FPS                frames per second (default: 194)
+  -m, --matplot         use mathplotlib to plot (default: False)
+  --config CONFIG       specify configuration file (default: None)
 ```
 
 注意在不指定CLIENT_ADDR的情况下，客户端地址默认为`/var/tmp/unix.socket.client.`+6位随机数字，以免启动多个客户端时地址冲突。当随机生成的地址冲突时，会再次重新生成可用地址。
@@ -309,8 +453,9 @@ optional arguments:
 代码入口是`main_data.py`，运行方式：
 
 ```
-usage: main_data.py [-h] [-n N] [-f FPS] [-m] [-o OUTPUT] [--interp INTERP]
-                    [--noblob] [--th THRESHOLD]
+usage: main_data.py [-h] [-n N] [-f FPS] [-m] [-z ZLIM] [-o OUTPUT]
+                    [--interp INTERP] [--noblob] [--th THRESHOLD] [--convert]
+                    [--v0 V0]
                     filename
 
 Visualize data, or process data via -o flag
@@ -319,14 +464,17 @@ positional arguments:
   filename
 
 optional arguments:
-  -h, --help       show this help message and exit
-  -n N             sensor side size (default: 16)
-  -f FPS           frames per second (default: 194)
-  -m, --matplot    use mathplotlib to plot (default: False)
-  -o OUTPUT        output processed data to file (default: None)
-  --interp INTERP  interpolated side size (default: 16)
-  --noblob         do not filter out blob (default: False)
-  --th THRESHOLD   blob filter threshold (default: 0.15)
+  -h, --help            show this help message and exit
+  -n N                  sensor side size (default: 16)
+  -f FPS                frames per second (default: 194)
+  -m, --matplot         use mathplotlib to plot (default: False)
+  -z ZLIM, --zlim ZLIM  z-axis limit (default: 3)
+  -o OUTPUT             output processed data to file (default: None)
+  --interp INTERP       interpolated side size (default: 16)
+  --noblob              do not filter out blob (default: False)
+  --th THRESHOLD        blob filter threshold (default: 0.15)
+  --convert             apply voltage-resistance conversion (default: False)
+  --v0 V0               refercence voltage for conversion (default: 255)
 ```
 
 - 交互模式：实际上是一个简易播放器，可在可视化界面播放、暂停、快进、快退、逐帧调整、重播等操作，具体交互方式是：
