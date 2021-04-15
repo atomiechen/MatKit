@@ -2,14 +2,14 @@ from serial import Serial
 from serial.tools.list_ports import comports
 import argparse
 
-from multiprocessing import Process
+from multiprocessing import Process  # 进程
 from multiprocessing import Array  # 共享内存
 from multiprocessing import Value  # 共享内存
-from multiprocessing import Queue
+from multiprocessing import Pipe  # 进程间通信管道
 
 import traceback
 
-from toolkit.server import Proc, Userver, DataSetterSerial, DataSetterFile
+from toolkit.server import Proc, Userver, DataSetterSerial, DataSetterDebug
 from toolkit.server import FLAG, CustomException
 from toolkit.tools import (
 	parse_ip_port, load_config, blank_config, check_shape, parse_mask, 
@@ -34,6 +34,8 @@ NO_CONVERT = False
 ZLIM = 3
 FPS = 100
 
+DEBUG = False
+
 
 def enumerate_ports():
 	# 查看可用端口
@@ -43,12 +45,15 @@ def enumerate_ports():
 
 def task_serial(paras):
 	try:
-		my_setter = DataSetterSerial(
-			paras['config']['sensor']['total'], 
-			paras['config']['serial']['baudrate'], 
-			paras['config']['serial']['port'], 
-			paras['config']['serial']['timeout'],
-		)
+		if paras['debug']:
+			my_setter = DataSetterDebug()
+		else:
+			my_setter = DataSetterSerial(
+				paras['config']['sensor']['total'], 
+				paras['config']['serial']['baudrate'], 
+				paras['config']['serial']['port'], 
+				paras['config']['serial']['timeout'],
+			)
 		my_proc = Proc(
 			paras['config']['sensor']['shape'], 
 			my_setter, 
@@ -69,7 +74,7 @@ def task_serial(paras):
 			rw_cutoff=paras['config']['process']['rw_cutoff'],
 			cali_frames=paras['config']['process']['cali_frames'],
 			cali_win_size=paras['config']['process']['cali_win_size'],
-			queue_from_server=paras['queue_to_main_client'],
+			pipe_conn=paras['pipe_proc'],
 		)
 		my_proc.run()
 	except KeyboardInterrupt:
@@ -80,7 +85,8 @@ def task_serial(paras):
 		traceback.print_exc()
 		# print(e)
 	finally:
-		paras['queue_to_main_client'].put(FLAG.FLAG_STOP)
+		## close the other process
+		paras['pipe_server'].send((FLAG.FLAG_STOP,))
 	print("Processing stopped.")
 
 def task_server(paras):
@@ -91,8 +97,8 @@ def task_server(paras):
 			paras['idx_out'], 
 			paras['config']['connection']['server_address'], 
 			total=paras['config']['sensor']['total'],
-			queue_to_main_client=paras['queue_to_main_client'],
-			udp=paras['config']['connection']['udp']
+			udp=paras['config']['connection']['udp'],
+			pipe_conn=paras['pipe_server'],
 		) as my_server:
 			my_server.run_service()
 	except KeyboardInterrupt:
@@ -103,7 +109,8 @@ def task_server(paras):
 		traceback.print_exc()
 		# print(e)
 	finally:
-		paras['queue_to_main_client'].put(FLAG.FLAG_STOP)
+		## close the other process
+		paras['pipe_proc'].send((FLAG.FLAG_STOP,))
 
 def task_file(paras):
 	## TODO
@@ -157,7 +164,8 @@ def main(args):
 	data_raw = Array('d', config['sensor']['total'])  # d for double
 	idx_out = Value('i')  # i for int
 	idx_out_file = Value('i')
-	queue_to_main_client = Queue()
+
+	pipe_proc, pipe_server = Pipe(duplex=True)
 
 	paras = {
 		"config": config,
@@ -165,7 +173,9 @@ def main(args):
 		"data_raw": data_raw,
 		"idx_out": idx_out,
 		"idx_out_file": idx_out_file,
-		"queue_to_main_client": queue_to_main_client,
+		"pipe_proc": pipe_proc,
+		"pipe_server": pipe_server,
+		"debug": args.debug,
 	}
 
 	if config['server_mode']['visualize']:
@@ -219,6 +229,7 @@ if __name__ == '__main__':
 	parser.add_argument('--pyqtgraph', dest='pyqtgraph', action='store_true', default=False, help="use pyqtgraph to plot")
 	# parser.add_argument('-m', '--matplot', dest='matplot', action='store_true', default=False, help="use matplotlib to plot")
 	parser.add_argument('--config', dest='config', action='store', default=None, help="specify configuration file")
+	parser.add_argument('-d', '--debug', dest='debug', action='store_true', default=DEBUG, help="debug mode")
 	args = parser.parse_args()
 
 	main(args)

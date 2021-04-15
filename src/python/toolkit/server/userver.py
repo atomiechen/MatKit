@@ -14,7 +14,7 @@ from os import unlink
 
 from queue import Empty
 
-from .flag import FLAG, FLAG_REC
+from .flag import FLAG
 
 
 class CMD(IntEnum):
@@ -68,7 +68,7 @@ class Userver:
 
 	def __init__(self, data_out, data_raw, idx_out, server_addr=None, **kwargs):
 		## for multiprocessing communication
-		self.queue_to_main_client = None
+		self.pipe_conn = None
 
 		self.config(**kwargs)
 		self.data_out = data_out
@@ -82,15 +82,15 @@ class Userver:
 
 		self.init_socket()
 
-	def config(self, *, total=None, udp=None, timeout=None, queue_to_main_client=None):
-		if total:
+	def config(self, *, total=None, udp=None, timeout=None, pipe_conn=None):
+		if total is not None:
 			self.TOTAL = total
 		if udp is not None:
 			self.UDP = udp
-		if timeout:
+		if timeout is not None:
 			self.TIMEOUT = timeout
-		if queue_to_main_client:
-			self.queue_to_main_client = queue_to_main_client
+		if pipe_conn is not None:
+			self.pipe_conn = pipe_conn
 
 	def init_socket(self):
 		if not support_unix_socket:
@@ -140,7 +140,7 @@ class Userver:
 		if self.data[0] == CMD.CLOSE:
 			reply = pack("=B", 0)
 			self.my_socket.sendto(reply, self.client_addr)
-			self.queue_to_main_client.put(FLAG_REC.FLAG_REC_STOP)
+			self.pipe_conn.send((FLAG.FLAG_REC_STOP,))
 			return CMD.CLOSE
 		elif self.data[0] == CMD.DATA:
 			reply = pack(self.frame_format, *(self.data_out), self.idx_out.value)
@@ -148,21 +148,23 @@ class Userver:
 		elif self.data[0] == CMD.RAW:
 			reply = pack(self.frame_format, *(self.data_raw), self.idx_out.value)
 			self.my_socket.sendto(reply, self.client_addr)
-		## TODO
-		elif self.data[0] == CMD.REC_DATA:
-			reply = pack("=B", 0) + self.data[1:]
+		elif self.data[0] in (CMD.REC_DATA, CMD.REC_RAW):
+			if self.data[0] == CMD.REC_DATA:  ## processed data
+				self.pipe_conn.send((FLAG.FLAG_REC_DATA, str(self.data[1:], encoding = "utf-8")))
+			else:  ## raw data
+				self.pipe_conn.send((FLAG.FLAG_REC_RAW, str(self.data[1:], encoding = "utf-8")))
+			msg = self.pipe_conn.recv()
+			flag = msg[0]
+			if flag == FLAG.FLAG_REC_RET_SUCCESS:
+				reply = pack("=B", 0) + msg[1].encode('utf-8')
+			else:
+				reply = pack("=B", 255)
 			self.my_socket.sendto(reply, self.client_addr)
-			self.queue_to_main_client.put(FLAG_REC.FLAG_REC_DATA)
-			self.queue_to_main_client.put(str(self.data[1:], encoding = "utf-8"))
-		elif self.data[0] == CMD.REC_RAW:
-			reply = pack("=B", 0) + self.data[1:]
-			self.my_socket.sendto(reply, self.client_addr)
-			self.queue_to_main_client.put(FLAG_REC.FLAG_REC_RAW)
-			self.queue_to_main_client.put(str(self.data[1:], encoding = "utf-8"))
 		elif self.data[0] == CMD.REC_STOP:
 			reply = pack("=B", 0)
+			self.pipe_conn.send((FLAG.FLAG_REC_STOP,))
 			self.my_socket.sendto(reply, self.client_addr)
-			self.queue_to_main_client.put(FLAG_REC.FLAG_REC_STOP)
+		## TODO
 		elif self.data[0] == CMD.RESTART:
 			pass
 		elif self.data[0] == CMD.PARAS:
@@ -170,7 +172,7 @@ class Userver:
 		elif self.data[0] == CMD.REC_BREAK:
 			reply = pack("=B", 0)
 			self.my_socket.sendto(reply, self.client_addr)
-			self.queue_to_main_client.put_nowait(FLAG_REC.FLAG_REC_BREAK)
+			self.pipe_conn.send((FLAG.FLAG_REC_BREAK,))
 
 	def print_service(self):
 		if self.UDP:
@@ -185,11 +187,12 @@ class Userver:
 		print(f"Running service...")
 		while True:
 			## check signals from the other process
-			if self.queue_to_main_client is not None:
+			if self.pipe_conn is not None:
 				try:
-					flag = self.queue_to_main_client.get_nowait()
-					if flag == FLAG.FLAG_STOP:
-						break
+					if self.pipe_conn.poll():
+						flag = self.pipe_conn.recv()
+						if flag == FLAG.FLAG_STOP:
+							break
 				except Empty:
 					pass
 
@@ -198,7 +201,7 @@ class Userver:
 				self.data, self.client_addr = self.my_socket.recvfrom(self.BUF_SIZE)
 				ret = self.proc_cmd()
 				if ret == CMD.CLOSE:
-					self.queue_to_main_client.put(FLAG.FLAG_STOP)
+					self.pipe_conn.send((FLAG.FLAG_STOP,))
 					break
 			except timeout:
 				pass

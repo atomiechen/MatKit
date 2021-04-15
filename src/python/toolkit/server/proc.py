@@ -2,16 +2,17 @@ from math import exp, hypot, pi, sin
 from enum import Enum
 import numpy as np
 import time
+from datetime import datetime
 
 from serial import Serial
 from multiprocessing import Array  # 共享内存
 from queue import Empty
 
-from .flag import FLAG, FLAG_REC
+from .flag import FLAG
 from .exception import SerialTimeout
 from ..tools import check_shape
 
-import joblib
+# import joblib
 
 
 class FILTER_SPATIAL(Enum):
@@ -54,6 +55,14 @@ class DataSetterSerial:
 				break
 
 
+class DataSetterDebug(DataSetterSerial):
+	def __init__(*args, **kwargs):
+		pass
+
+	def __call__(*args, **kwargs):
+		time.sleep(0.01)
+
+
 class DataSetterFile:
 	## TODO add file as source
 	def __init__(self):
@@ -92,15 +101,13 @@ class Proc:
 	## for warming up, make CPU schedule more time for serial reading
 	WARM_UP = 1  # seconds
 
-	## run loop or wait for waking up from server
-	RUN_LOOP = True
-
 	## filename received from server
+	FILENAME_TEMPLATE = "record_%Y%m%d%H%M%S.csv"
+	FILENAME_TEMPLATE_RAW = "record_%Y%m%d%H%M%S_raw.csv"
 	filename = None
-
 	filename_id = 0
 
-	clf = None
+	# clf = None
 
 	five_data_to_predict = []
 
@@ -127,18 +134,17 @@ class Proc:
 		self.idx_out = idx_out
 
 		## for multiprocessing communication
-		self.queue_from_server = None
+		self.pipe_conn = None
 
 		self.config(**kwargs)
 
-        self.clf = joblib.load("main.pkl")
+		# self.clf = joblib.load("main.pkl")
 
 	def config(self, *, raw=None, warm_up=None,
 		V0=None, R0_RECI=None, convert=None, mask=None, 
 		filter_spatial=None, filter_spatial_cutoff=None, butterworth_order=None,
 		filter_temporal=None, filter_temporal_size=None, rw_cutoff=None,
-		cali_frames=None, cali_win_size=None,
-		RUN_LOOP=None, queue_from_server=None):
+		cali_frames=None, cali_win_size=None, pipe_conn=None):
 		if raw is not None:
 			self.my_raw = raw
 		if warm_up is not None:
@@ -167,10 +173,8 @@ class Proc:
 			self.my_INIT_CALI_FRAMES = cali_frames
 		if cali_win_size is not None:
 			self.my_WIN_SIZE = cali_win_size
-		if RUN_LOOP:
-			self.RUN_LOOP = RUN_LOOP
-		if queue_from_server:
-			self.queue_from_server = queue_from_server
+		if pipe_conn is not None:
+			self.pipe_conn = pipe_conn
 
 	def reset(self):
 		## for output
@@ -192,11 +196,7 @@ class Proc:
 		np_array *= r0_reci
 
 	def get_raw_frame(self):
-		# if self.filename:
-		# 	self.data_setter(data_tmp=self.data_tmp, filename=self.filename,
-		# 					idx_out=self.idx_out, filename_id=self.filename_id)
-		# else:
-		self.data_setter(data_tmp=self.data_tmp)
+		self.data_setter(self.data_tmp)
 		if self.mask is not None:
 			self.data_reshape *= self.mask
 		if self.my_convert:
@@ -229,7 +229,7 @@ class Proc:
 			self.five_data_to_predict = self.five_data_to_predict[64:]
 			for d in self.data_out:
 				self.five_data_to_predict.append(d)
-			print(self.clf.predict([self.five_data_to_predict]))
+			# print(self.clf.predict([self.five_data_to_predict]))
 
 
 
@@ -411,41 +411,44 @@ class Proc:
 		print("Running processing...")
 		while True:
 			## check signals from the other process
-			if self.queue_from_server is not None:
+			if self.pipe_conn is not None:
 				try:
-					flag = self.queue_from_server.get_nowait()
-					print(str(flag))
-					if flag == FLAG.FLAG_STOP:
-						pass
-					if flag == FLAG_REC.FLAG_REC_DATA:
-						self.RUN_LOOP = True
-						self.my_raw = False
-						while True:
-							filename = self.queue_from_server.get_nowait()
-							if filename is not None:
+					if self.pipe_conn.poll():
+						msg = self.pipe_conn.recv()
+						# print(f"msg={msg}")
+						flag = msg[0]
+						if flag == FLAG.FLAG_STOP:
+							break
+						if flag in (FLAG.FLAG_REC_DATA, FLAG.FLAG_REC_RAW):
+							self.my_raw = True if flag == FLAG.FLAG_REC_RAW else True
+							filename = msg[1]
+							if filename == "":
+								if flag == FLAG.FLAG_REC_RAW:
+									filename = datetime.now().strftime(self.FILENAME_TEMPLATE_RAW)
+								else:
+									filename = datetime.now().strftime(self.FILENAME_TEMPLATE)
+							try:
+								with open(filename, 'a') as fout:
+									pass
+								if self.filename is not None:
+									print(f"stop recording:   {self.filename}")
 								self.filename = filename
-					elif flag == FLAG_REC.FLAG_REC_RAW:
-						self.RUN_LOOP = True
-						self.my_raw = True
-						while True:
-							filename = self.queue_from_server.get_nowait()
-							if filename is not None:
-								self.filename = filename
-					elif flag == FLAG_REC.FLAG_REC_STOP:
-						self.RUN_LOOP = False
-						self.filename = None
-						self.filename_id = 0
-					elif flag == FLAG_REC.FLAG_REC_BREAK:
-						self.filename_id += 1
-					else:
-						filename = str(flag)
-						print("filename: " + filename)
-						if filename is not None:
-								self.filename = filename
+								print(f"recording to:     {self.filename}")
+								self.pipe_conn.send((FLAG.FLAG_REC_RET_SUCCESS,self.filename))
+							except:
+								print(f"failed to record: {self.filename}")
+								self.pipe_conn.send((FLAG.FLAG_REC_RET_FAIL,))
+
+						elif flag == FLAG.FLAG_REC_STOP:
+							if self.filename is not None:
+								print(f"stop recording:   {self.filename}")
+							self.filename = None
+							self.filename_id = 0
+						elif flag == FLAG.FLAG_REC_BREAK:
+							self.filename_id += 1
 				except Empty:
 					pass
 
-			# if self.RUN_LOOP:
 			try:
 				self.get_raw_frame()
 			except SerialTimeout:
