@@ -174,6 +174,14 @@ UNIX domain socket通信地址：`/var/tmp/unix.socket.server`
 pip3 install -r requirements.txt
 ```
 
+网速过慢可以使用清华源：
+
+```sh
+pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+
+
 #### 手动安装
 
 也可以手动安装如下python库：
