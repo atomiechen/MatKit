@@ -340,6 +340,17 @@ class Uclient:
 			except:
 				yield self.data_reshape
 
+	def gen_frame_and_index(self, input_arg=CMD.DATA):
+		while True:
+			try:
+				self.send_cmd(input_arg)
+				self.recv_frame()
+				yield self.data_reshape, self.frame_idx
+			except GeneratorExit:
+				return
+			except:
+				yield self.data_reshape, self.frame_idx
+
 	def interactive_cmd(self, my_cmd):
 		"""interactive command parser
 
