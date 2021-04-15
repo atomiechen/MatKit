@@ -65,7 +65,7 @@ class CursorClient:
 		self.my_socket.send((" ".join([str(item) for item in paras])+"\n").encode())
 
 
-def mapping(x, y, left=0.4, right=0.9, up=0.1, down=0.8):
+def mapping(x, y, left=0.1, right=0.9, up=0.1, down=0.9):
 	x0 = 1-y
 	y0 = 1-x
 	x1 = min(max(x0 - left, 0) / (right - left), 0.999)
