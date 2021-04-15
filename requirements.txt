@@ -1,0 +1,29 @@
+## ref: https://pip.pypa.io/en/latest/cli/pip_install/
+
+## numeric calculation
+numpy>=1.19.2
+scipy>=1.5.4
+
+## serial port
+pyserial>=3.5
+
+## configuration
+PyYAML>=5.4.1
+
+## parsing arithmetic expression in configurations
+pyparsing>=2.4.7
+
+## visualization
+matplotlib>=3.3
+
+## visualization using pyqtgraph
+# git+https://github.com/pyqtgraph/pyqtgraph
+pyqtgraph==0.11.*
+PyOpenGL~=3.1.5
+## ref: https://github.com/pyqtgraph/pyqtgraph#qt-bindings-test-matrix
+PyQt5==5.12.* ; python_version == '3.7'
+PyQt5==5.15.* ; python_version == '3.8'
+PyQt6==6.0.* ; python_version == '3.9'
+
+## simulation of input devices
+PyAutoGUI>=0.9.52
