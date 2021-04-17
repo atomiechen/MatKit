@@ -12,8 +12,6 @@ from .flag import FLAG
 from .exception import SerialTimeout
 from ..tools import check_shape
 
-# import joblib
-
 
 class FILTER_SPATIAL(Enum):
 	NONE = "none"  # no spatial filter
@@ -107,9 +105,6 @@ class Proc:
 	filename = None
 	filename_id = 0
 
-	# clf = None
-
-	five_data_to_predict = []
 
 	def __init__(self, n, data_setter, data_out, data_raw, idx_out, **kwargs):
 		## sensor info
@@ -138,7 +133,6 @@ class Proc:
 
 		self.config(**kwargs)
 
-		# self.clf = joblib.load("main.pkl")
 
 	def config(self, *, raw=None, warm_up=None,
 		V0=None, R0_RECI=None, convert=None, mask=None, 
@@ -222,15 +216,6 @@ class Proc:
 					f.write(str(d) + ',')
 				# f.write(str(self.idx_out) + ',' + str(self.cur_time) + ',\n')
 				f.write('\n')
-		if len(self.five_data_to_predict) < 320:
-			for d in self.data_out:
-				self.five_data_to_predict.append(d)
-		else:
-			self.five_data_to_predict = self.five_data_to_predict[64:]
-			for d in self.data_out:
-				self.five_data_to_predict.append(d)
-			# print(self.clf.predict([self.five_data_to_predict]))
-
 
 
 	def prepare_spatial(self):
