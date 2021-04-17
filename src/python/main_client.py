@@ -8,7 +8,8 @@ import copy
 from toolkit.uclient import CMD, Uclient
 from toolkit.process import Processor
 from toolkit.tools import (
-	parse_ip_port, load_config, blank_config, check_shape, check_config
+	parse_ip_port, load_config, blank_config, check_shape, check_config,
+	make_action, DEST_SUFFIX
 )
 
 N = 16
@@ -36,41 +37,48 @@ def run_client_interactive(my_client):
 
 		my_client.interactive_cmd(my_cmd)
 
-def main(args):
+def prepare_config(args):
 	## load config and combine commandline arguments
 	if args.config:
 		config = load_config(args.config)
 	else:
 		config = blank_config()
-	if config['sensor']['shape'] is None:
+	## priority: commandline arguments > config file > program defaults
+	if config['sensor']['shape'] is None or hasattr(args, 'n'+DEST_SUFFIX):
 		config['sensor']['shape'] = args.n
-	if config['connection']['udp'] is None:
+	if config['connection']['udp'] is None or hasattr(args, 'udp'+DEST_SUFFIX):
 		config['connection']['udp'] = args.udp
-	if config['connection']['server_address'] is None:
-		config['connection']['server_address'] = args.server_addr
-	if config['connection']['client_address'] is None:
-		config['connection']['client_address'] = args.client_addr
-	if config['process']['interp'] is None:
+	if config['connection']['server_address'] is None or hasattr(args, 'server_address'+DEST_SUFFIX):
+		config['connection']['server_address'] = args.server_address
+	if config['connection']['client_address'] is None or hasattr(args, 'client_address'+DEST_SUFFIX):
+		config['connection']['client_address'] = args.client_address
+	if config['process']['interp'] is None or hasattr(args, 'interp'+DEST_SUFFIX):
 		config['process']['interp'] = args.interp
-	if config['process']['blob'] is None:
+	if config['process']['blob'] is None or hasattr(args, 'noblob'+DEST_SUFFIX):
 		config['process']['blob'] = not args.noblob
-	if config['process']['threshold'] is None:
+	if config['process']['threshold'] is None or hasattr(args, 'threshold'+DEST_SUFFIX):
 		config['process']['threshold'] = args.threshold
-	if config['visual']['zlim'] is None:
+	if config['visual']['zlim'] is None or hasattr(args, 'zlim'+DEST_SUFFIX):
 		config['visual']['zlim'] = args.zlim
-	if config['visual']['fps'] is None:
+	if config['visual']['fps'] is None or hasattr(args, 'fps'+DEST_SUFFIX):
 		config['visual']['fps'] = args.fps
-	if config['visual']['pyqtgraph'] is None:
+	if config['visual']['pyqtgraph'] is None or hasattr(args, 'matplot'+DEST_SUFFIX):
 		config['visual']['pyqtgraph'] = not args.matplot
-	if config['client_mode']['raw'] is None:
+	if config['client_mode']['raw'] is None or hasattr(args, 'raw'+DEST_SUFFIX):
 		config['client_mode']['raw'] = args.raw
-	if config['client_mode']['interactive'] is None:
+	if config['client_mode']['interactive'] is None or hasattr(args, 'interactive'+DEST_SUFFIX):
 		config['client_mode']['interactive'] = args.interactive
 	check_config(config)
 
 	## some modifications
 	if config['process']['interp'] is None:
 		config['process']['interp'] = copy.deepcopy(config['sensor']['shape'])
+
+	return config
+
+
+def main(args):
+	config = prepare_config(args)
 
 	with Uclient(
 		config['connection']['client_address'], 
@@ -119,19 +127,19 @@ def main(args):
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-	parser.add_argument('-s', dest='server_addr', action='store', help="specify server socket address")
-	parser.add_argument('-c', dest='client_addr', action='store', help="specify client socket address")
-	parser.add_argument('-u', '--udp', dest='udp', action='store_true', default=UDP, help="use UDP protocol")
-	parser.add_argument('-r', '--raw', dest='raw', action='store_true', default=False, help="plot raw data")
-	parser.add_argument('-n', dest='n', action='store', default=[N], type=int, nargs='+', help="specify sensor shape")
-	parser.add_argument('--interp', dest='interp', action='store', default=None, type=int, nargs='+', help="interpolated shape")
-	parser.add_argument('--noblob', dest='noblob', action='store_true', default=False, help="do not filter out blob")
-	parser.add_argument('--th', dest='threshold', action='store', default=TH, type=float, help="blob filter threshold")
-	parser.add_argument('-i', '--interactive', dest='interactive', action='store_true', default=False, help="interactive mode")
-	parser.add_argument('-z', '--zlim', dest='zlim', action='store', default=ZLIM, type=float, help="z-axis limit")
-	parser.add_argument('-f', dest='fps', action='store', default=FPS, type=int, help="frames per second")
-	parser.add_argument('-m', '--matplot', dest='matplot', action='store_true', default=False, help="use mathplotlib to plot")
-	parser.add_argument('--config', dest='config', action='store', default=None, help="specify configuration file")
+	parser.add_argument('--server_address', dest='server_address', action=make_action('store'), help="specify server socket address")
+	parser.add_argument('--client_address', dest='client_address', action=make_action('store'), help="specify client socket address")
+	parser.add_argument('-u', '--udp', dest='udp', action=make_action('store_true'), default=UDP, help="use UDP protocol")
+	parser.add_argument('-r', '--raw', dest='raw', action=make_action('store_true'), default=False, help="plot raw data")
+	parser.add_argument('-n', dest='n', action=make_action('store'), default=[N], type=int, nargs='+', help="specify sensor shape")
+	parser.add_argument('--interp', dest='interp', action=make_action('store'), default=None, type=int, nargs='+', help="interpolated shape")
+	parser.add_argument('--noblob', dest='noblob', action=make_action('store_true'), default=False, help="do not filter out blob")
+	parser.add_argument('--th', dest='threshold', action=make_action('store'), default=TH, type=float, help="blob filter threshold")
+	parser.add_argument('-i', '--interactive', dest='interactive', action=make_action('store_true'), default=False, help="interactive mode")
+	parser.add_argument('-z', '--zlim', dest='zlim', action=make_action('store'), default=ZLIM, type=float, help="z-axis limit")
+	parser.add_argument('-f', dest='fps', action=make_action('store'), default=FPS, type=int, help="frames per second")
+	parser.add_argument('-m', '--matplot', dest='matplot', action=make_action('store_true'), default=False, help="use mathplotlib to plot")
+	parser.add_argument('--config', dest='config', action=make_action('store'), default=None, help="specify configuration file")
 	args = parser.parse_args()
 
 	main(args)

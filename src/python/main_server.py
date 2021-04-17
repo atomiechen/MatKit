@@ -13,7 +13,7 @@ from toolkit.server import Proc, Userver, DataSetterSerial, DataSetterDebug
 from toolkit.server import FLAG, CustomException
 from toolkit.tools import (
 	parse_ip_port, load_config, blank_config, check_shape, parse_mask, 
-	check_config, print_sensor
+	check_config, print_sensor, make_action, DEST_SUFFIX
 )
 
 
@@ -35,7 +35,6 @@ ZLIM = 3
 FPS = 100
 
 DEBUG = False
-
 
 def enumerate_ports():
 	# 查看可用端口
@@ -116,41 +115,47 @@ def task_file(paras):
 	## TODO
 	pass
 
-def main(args):
+def prepare_config(args):
 	## load config and combine commandline arguments
 	if args.config:
 		config = load_config(args.config)
 	else:
 		config = blank_config()
-	if config['sensor']['shape'] is None:
+	## priority: commandline arguments > config file > program defaults
+	if config['sensor']['shape'] is None or hasattr(args, 'n'+DEST_SUFFIX):
 		config['sensor']['shape'] = args.n
-	if config['serial']['baudrate'] is None:
+	if config['serial']['baudrate'] is None or hasattr(args, 'baudrate'+DEST_SUFFIX):
 		config['serial']['baudrate'] = args.baudrate
-	if config['serial']['timeout'] is None:
+	if config['serial']['timeout'] is None or hasattr(args, 'timeout'+DEST_SUFFIX):
 		config['serial']['timeout'] = args.timeout
-	if config['serial']['port'] is None:
+	if config['serial']['port'] is None or hasattr(args, 'port'+DEST_SUFFIX):
 		config['serial']['port'] = args.port
-	if config['connection']['udp'] is None:
+	if config['connection']['udp'] is None or hasattr(args, 'udp'+DEST_SUFFIX):
 		config['connection']['udp'] = args.udp
-	if config['connection']['server_address'] is None:
+	if config['connection']['server_address'] is None or hasattr(args, 'address'+DEST_SUFFIX):
 		config['connection']['server_address'] = args.address
-	if config['process']['convert'] is None:
+	if config['process']['convert'] is None or hasattr(args, 'no_convert'+DEST_SUFFIX):
 		config['process']['convert'] = not args.no_convert
-	if config['visual']['zlim'] is None:
+	if config['visual']['zlim'] is None or hasattr(args, 'zlim'+DEST_SUFFIX):
 		config['visual']['zlim'] = args.zlim
-	if config['visual']['fps'] is None:
+	if config['visual']['fps'] is None or hasattr(args, 'fps'+DEST_SUFFIX):
 		config['visual']['fps'] = args.fps
-	if config['visual']['pyqtgraph'] is None:
+	if config['visual']['pyqtgraph'] is None or hasattr(args, 'pyqtgraph'+DEST_SUFFIX):
 		config['visual']['pyqtgraph'] = args.pyqtgraph
-	if config['server_mode']['service'] is None:
+	if config['server_mode']['service'] is None or hasattr(args, 'service'+DEST_SUFFIX):
 		config['server_mode']['service'] = args.service
-	if config['server_mode']['raw'] is None:
+	if config['server_mode']['raw'] is None or hasattr(args, 'raw'+DEST_SUFFIX):
 		config['server_mode']['raw'] = args.raw
-	if config['server_mode']['visualize'] is None:
+	if config['server_mode']['visualize'] is None or hasattr(args, 'visualize'+DEST_SUFFIX):
 		config['server_mode']['visualize'] = args.visualize
-	if config['server_mode']['enumerate'] is None:
+	if config['server_mode']['enumerate'] is None or hasattr(args, 'enumerate'+DEST_SUFFIX):
 		config['server_mode']['enumerate'] = args.enumerate
 	check_config(config)
+	return config
+
+
+def main(args):
+	config = prepare_config(args)
 
 	## enumerate serial ports
 	if config['server_mode']['enumerate']:
@@ -213,23 +218,23 @@ def main(args):
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-	parser.add_argument('-e', dest='enumerate', action='store_true', default=False, help="enumerate all serial ports")
-	parser.add_argument('-p', dest='port', action='store', default=PORT, help="specify serial port")
-	parser.add_argument('-b', dest='baudrate', action='store', default=BAUDRATE, type=int, help="specify baudrate")
-	parser.add_argument('-t', dest='timeout', action='store', default=TIMEOUT, type=float, help="specify timeout in seconds")
-	parser.add_argument('-n', dest='n', action='store', default=[N], type=int, nargs='+', help="specify sensor shape")
-	parser.add_argument('-s', '--service', dest='service', action='store_true', default=False, help="run service")
-	parser.add_argument('-a', '--address', dest='address', action='store', help="specify server socket address")
-	parser.add_argument('-u', '--udp', dest='udp', action='store_true', default=UDP, help="use UDP protocol")
-	parser.add_argument('-r', '--raw', dest='raw', action='store_true', default=False, help="raw data mode")
-	parser.add_argument('-nc', '--no_convert', dest='no_convert', action='store_true', default=NO_CONVERT, help="do not apply voltage-resistance conversion")
-	parser.add_argument('-v', '--visualize', dest='visualize', action='store_true', default=False, help="enable visualization")
-	parser.add_argument('-z', '--zlim', dest='zlim', action='store', default=ZLIM, type=float, help="z-axis limit")
-	parser.add_argument('-f', dest='fps', action='store', default=FPS, type=int, help="frames per second")
-	parser.add_argument('--pyqtgraph', dest='pyqtgraph', action='store_true', default=False, help="use pyqtgraph to plot")
-	# parser.add_argument('-m', '--matplot', dest='matplot', action='store_true', default=False, help="use matplotlib to plot")
-	parser.add_argument('--config', dest='config', action='store', default=None, help="specify configuration file")
-	parser.add_argument('-d', '--debug', dest='debug', action='store_true', default=DEBUG, help="debug mode")
+	parser.add_argument('-e', dest='enumerate', action=make_action('store_true'), default=False, help="enumerate all serial ports")
+	parser.add_argument('-p', dest='port', action=make_action('store'), default=PORT, help="specify serial port")
+	parser.add_argument('-b', dest='baudrate', action=make_action('store'), default=BAUDRATE, type=int, help="specify baudrate")
+	parser.add_argument('-t', dest='timeout', action=make_action('store'), default=TIMEOUT, type=float, help="specify timeout in seconds")
+	parser.add_argument('-n', dest='n', action=make_action('store'), default=[N], type=int, nargs='+', help="specify sensor shape")
+	parser.add_argument('-s', '--service', dest='service', action=make_action('store_true'), default=False, help="run service")
+	parser.add_argument('-a', '--address', dest='address', action=make_action('store'), help="specify server socket address")
+	parser.add_argument('-u', '--udp', dest='udp', action=make_action('store_true'), default=UDP, help="use UDP protocol")
+	parser.add_argument('-r', '--raw', dest='raw', action=make_action('store_true'), default=False, help="raw data mode")
+	parser.add_argument('-nc', '--no_convert', dest='no_convert', action=make_action('store_true'), default=NO_CONVERT, help="do not apply voltage-resistance conversion")
+	parser.add_argument('-v', '--visualize', dest='visualize', action=make_action('store_true'), default=False, help="enable visualization")
+	parser.add_argument('-z', '--zlim', dest='zlim', action=make_action('store'), default=ZLIM, type=float, help="z-axis limit")
+	parser.add_argument('-f', dest='fps', action=make_action('store'), default=FPS, type=int, help="frames per second")
+	parser.add_argument('--pyqtgraph', dest='pyqtgraph', action=make_action('store_true'), default=False, help="use pyqtgraph to plot")
+	# parser.add_argument('-m', '--matplot', dest='matplot', action=make_action('store_true'), default=False, help="use matplotlib to plot")
+	parser.add_argument('--config', dest='config', action=make_action('store'), default=None, help="specify configuration file")
+	parser.add_argument('-d', '--debug', dest='debug', action=make_action('store_true'), default=DEBUG, help="debug mode")
 	args = parser.parse_args()
 
 	main(args)

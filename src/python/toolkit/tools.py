@@ -8,10 +8,15 @@ from pyparsing import (Literal, CaselessLiteral, Word, Combine, Group, Optional,
                        ZeroOrMore, Forward, nums, alphas, oneOf)
 import math
 import operator
+import argparse
 
+
+## blank config
 TEMPLATE_PATH = "blank_template.yaml"
-data = pkgutil.get_data(__name__, TEMPLATE_PATH)
-blank = yaml.safe_load(data)
+_data = pkgutil.get_data(__name__, TEMPLATE_PATH)
+BLANK = yaml.safe_load(_data)
+## argparse additional argument suffix
+DEST_SUFFIX = '_specified'
 
 
 def parse_ip_port(content):
@@ -53,7 +58,7 @@ def check_config(config):
 			else:
 				dict_target[key] = copy.deepcopy(dict_default[key])
 	## recurse to fill empty fields
-	recurse(blank, config)
+	recurse(BLANK, config)
 	## some transformation for certain fields
 	if config['sensor']['shape'] is not None:
 		config['sensor']['shape'] = check_shape(config['sensor']['shape'])
@@ -81,7 +86,7 @@ def load_config(filename):
 
 
 def blank_config():
-	return copy.deepcopy(blank)
+	return copy.deepcopy(BLANK)
 
 
 def print_sensor(config, tab=''):
@@ -192,6 +197,23 @@ class NumericStringParser(object):
         results = self.bnf.parseString(num_string, parseAll)
         val = self.evaluateStack(self.exprStack[:])
         return val
+
+## If the user specified a value (whether it equals default or not), a new 
+## renamed attribute will be set True to record this event.
+## If the code fails, fall back to orginal behaviors.
+def make_action(action_keyword, dest_suffix=DEST_SUFFIX):
+    try:
+        ## ref: argparse source code, and https://stackoverflow.com/a/50936474/11854304
+        action_base_class = argparse.ArgumentParser()._registry_get('action', action_keyword)
+        # print(action_base_class)
+        class FooAction(action_base_class):
+            def __call__(self, parser, namespace, values, option_string=None):
+                super().__call__(parser, namespace, values, option_string)
+                # setattr(namespace, self.dest, values)
+                setattr(namespace, self.dest+dest_suffix, True)
+        return FooAction
+    except:
+        return action_keyword
 
 
 if __name__ == '__main__':
