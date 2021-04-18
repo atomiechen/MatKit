@@ -128,6 +128,9 @@ class Proc:
 		self.data_raw = data_raw
 		self.idx_out = idx_out
 
+		## recording
+		self.record_raw = False
+
 		## for multiprocessing communication
 		self.pipe_conn = None
 
@@ -212,10 +215,12 @@ class Proc:
 			# filename[0] += ('_' + str(kwargs['filename_id']))
 			# filename = '.'.join(filename)
 			with open(self.filename, 'a', encoding='utf-8') as f:
-				for d in self.data_out:
-					f.write(str(d) + ',')
-				# f.write(str(self.idx_out) + ',' + str(self.cur_time) + ',\n')
-				f.write('\n')
+				if self.record_raw:
+					data_ptr = self.data_raw
+				else:
+					data_ptr = self.data_out
+				line_list = list(data_ptr) + [self.idx_out.value, int(self.cur_time*10**6)]
+				f.write(','.join([str(item) for item in line_list])+'\n')
 
 
 	def prepare_spatial(self):
@@ -405,7 +410,7 @@ class Proc:
 						if flag == FLAG.FLAG_STOP:
 							break
 						if flag in (FLAG.FLAG_REC_DATA, FLAG.FLAG_REC_RAW):
-							self.my_raw = True if flag == FLAG.FLAG_REC_RAW else True
+							self.record_raw = True if flag == FLAG.FLAG_REC_RAW else True
 							filename = msg[1]
 							if filename == "":
 								if flag == FLAG.FLAG_REC_RAW:
