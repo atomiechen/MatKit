@@ -154,14 +154,20 @@ class Proc:
 			self.my_convert = convert
 		if mask is not None:
 			self.mask = mask
-		if filter_spatial in FILTER_SPATIAL.__members__.values():
-			self.my_filter_spatial = filter_spatial
+		if filter_spatial is not None:
+			try:
+				self.my_filter_spatial = FILTER_SPATIAL(filter_spatial)
+			except:
+				print(f"Invalid spatial filter: '{filter_spatial}'! Use {self.my_filter_spatial.value} instead.")
 		if filter_spatial_cutoff is not None:
 			self.my_SF_D0 = filter_spatial_cutoff
 		if butterworth_order is not None:
 			self.my_BUTTER_ORDER = butterworth_order
-		if filter_temporal in FILTER_TEMPORAL.__members__.values():
-			self.my_filter_temporal = filter_temporal
+		if filter_temporal is not None:
+			try:
+				self.my_filter_temporal = FILTER_TEMPORAL(filter_temporal)
+			except:
+				print(f"Invalid temporal filter: '{filter_temporal}'! Use {self.my_filter_temporal.value} instead.")
 		if filter_temporal_size is not None:
 			self.my_LP_SIZE = filter_temporal_size
 		if rw_cutoff is not None:
