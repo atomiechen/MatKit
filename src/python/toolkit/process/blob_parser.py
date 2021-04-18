@@ -221,6 +221,7 @@ class BlobParser:
 
 	def special_check(self):
 		## special case to exclude due to hardware problem
+		blob_idx = 0
 		if self.centers[0][1] <= 0.06 * (self.n[1] - 1):
 			blob_idx = -1
 			# print(f"sepcial case {self.centers[0][1]} {self.blob_cnt}")
