@@ -25,7 +25,23 @@ sensor:
   total: 256
   ## 0/1 mask to exclude non-existent points
   ## |- for multiline without a newline in the end
-  mask: ~
+  mask: |-
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1
+    0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1
+    0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+    1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
+    0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1
+    0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 1
 
 serial:
   ## baudrate: 9600, 250000, 500000, 1000000
@@ -95,6 +111,6 @@ visual:
   ## using pyqtgraph or matplotlib
   pyqtgraph: false
   ## z-axis limit: 3, 5
-  zlim: 3
+  zlim: 10
   ## frame rate: 100
   fps: 100
