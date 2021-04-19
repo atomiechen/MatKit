@@ -10,6 +10,7 @@ from multiprocessing import Array  # 共享内存
 from .flag import FLAG
 from .exception import SerialTimeout
 from ..tools import check_shape
+from ..filemanager import parse_line, write_line
 
 
 class FILTER_SPATIAL(Enum):
@@ -216,16 +217,15 @@ class Proc:
 			self.last_frame_idx = self.idx_out.value
 			self.last_time = self.cur_time
 		if self.filename:
-			# filename = self.filename.split('.')
-			# filename[0] += ('_' + str(kwargs['filename_id']))
-			# filename = '.'.join(filename)
-			with open(self.filename, 'a', encoding='utf-8') as f:
-				if self.record_raw:
-					data_ptr = self.data_raw
-				else:
-					data_ptr = self.data_out
-				line_list = list(data_ptr) + [self.idx_out.value, int(self.cur_time*10**6)]
-				f.write(','.join([str(item) for item in line_list])+'\n')
+			if self.record_raw:
+				data_ptr = self.data_raw
+			else:
+				data_ptr = self.data_out
+			timestamp = int(self.cur_time*1000000)
+			write_line(self.filename, data_ptr, tags=[self.idx_out.value, timestamp])
+			# with open(self.filename, 'a', encoding='utf-8') as f:
+			# 	line_list = list(data_ptr) + [self.idx_out.value, int(self.cur_time*10**6)]
+			# 	f.write(','.join([str(item) for item in line_list])+'\n')
 
 
 	def prepare_spatial(self):
