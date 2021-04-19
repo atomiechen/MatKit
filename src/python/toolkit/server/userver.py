@@ -12,8 +12,6 @@ from enum import IntEnum
 from struct import calcsize, pack, unpack, unpack_from
 from os import unlink
 
-from queue import Empty
-
 from .flag import FLAG
 
 
@@ -188,13 +186,10 @@ class Userver:
 		while True:
 			## check signals from the other process
 			if self.pipe_conn is not None:
-				try:
-					if self.pipe_conn.poll():
-						flag = self.pipe_conn.recv()
-						if flag == FLAG.FLAG_STOP:
-							break
-				except Empty:
-					pass
+				if self.pipe_conn.poll():
+					flag = self.pipe_conn.recv()
+					if flag == FLAG.FLAG_STOP:
+						break
 
 			## try to receive requests from client(s)
 			try:

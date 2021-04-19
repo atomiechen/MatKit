@@ -6,7 +6,6 @@ from datetime import datetime
 
 from serial import Serial
 from multiprocessing import Array  # 共享内存
-from queue import Empty
 
 from .flag import FLAG
 from .exception import SerialTimeout
@@ -408,42 +407,39 @@ class Proc:
 		while True:
 			## check signals from the other process
 			if self.pipe_conn is not None:
-				try:
-					if self.pipe_conn.poll():
-						msg = self.pipe_conn.recv()
-						# print(f"msg={msg}")
-						flag = msg[0]
-						if flag == FLAG.FLAG_STOP:
-							break
-						if flag in (FLAG.FLAG_REC_DATA, FLAG.FLAG_REC_RAW):
-							self.record_raw = True if flag == FLAG.FLAG_REC_RAW else True
-							filename = msg[1]
-							if filename == "":
-								if flag == FLAG.FLAG_REC_RAW:
-									filename = datetime.now().strftime(self.FILENAME_TEMPLATE_RAW)
-								else:
-									filename = datetime.now().strftime(self.FILENAME_TEMPLATE)
-							try:
-								with open(filename, 'a') as fout:
-									pass
-								if self.filename is not None:
-									print(f"stop recording:   {self.filename}")
-								self.filename = filename
-								print(f"recording to:     {self.filename}")
-								self.pipe_conn.send((FLAG.FLAG_REC_RET_SUCCESS,self.filename))
-							except:
-								print(f"failed to record: {self.filename}")
-								self.pipe_conn.send((FLAG.FLAG_REC_RET_FAIL,))
-
-						elif flag == FLAG.FLAG_REC_STOP:
+				if self.pipe_conn.poll():
+					msg = self.pipe_conn.recv()
+					# print(f"msg={msg}")
+					flag = msg[0]
+					if flag == FLAG.FLAG_STOP:
+						break
+					if flag in (FLAG.FLAG_REC_DATA, FLAG.FLAG_REC_RAW):
+						self.record_raw = True if flag == FLAG.FLAG_REC_RAW else True
+						filename = msg[1]
+						if filename == "":
+							if flag == FLAG.FLAG_REC_RAW:
+								filename = datetime.now().strftime(self.FILENAME_TEMPLATE_RAW)
+							else:
+								filename = datetime.now().strftime(self.FILENAME_TEMPLATE)
+						try:
+							with open(filename, 'a') as fout:
+								pass
 							if self.filename is not None:
 								print(f"stop recording:   {self.filename}")
-							self.filename = None
-							self.filename_id = 0
-						elif flag == FLAG.FLAG_REC_BREAK:
-							self.filename_id += 1
-				except Empty:
-					pass
+							self.filename = filename
+							print(f"recording to:     {self.filename}")
+							self.pipe_conn.send((FLAG.FLAG_REC_RET_SUCCESS,self.filename))
+						except:
+							print(f"failed to record: {self.filename}")
+							self.pipe_conn.send((FLAG.FLAG_REC_RET_FAIL,))
+
+					elif flag == FLAG.FLAG_REC_STOP:
+						if self.filename is not None:
+							print(f"stop recording:   {self.filename}")
+						self.filename = None
+						self.filename_id = 0
+					elif flag == FLAG.FLAG_REC_BREAK:
+						self.filename_id += 1
 
 			try:
 				self.get_raw_frame()
