@@ -8,5 +8,11 @@ class SerialTimeout(CustomException):
 		super().__init__(msg)
 
 
+class FileEnd(CustomException):
+	def __init__(self):
+		msg = "End of file."
+		super().__init__(msg)
+
+
 if __name__ == '__main__':
 	raise SerialTimeout

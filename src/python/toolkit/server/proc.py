@@ -3,12 +3,13 @@ from enum import Enum
 import numpy as np
 import time
 from datetime import datetime
+from typing import Iterable
 
 from serial import Serial
 from multiprocessing import Array  # 共享内存
 
 from .flag import FLAG
-from .exception import SerialTimeout
+from .exception import SerialTimeout, FileEnd
 from ..tools import check_shape
 from ..filemanager import parse_line, write_line
 
@@ -62,14 +63,44 @@ class DataSetterDebug(DataSetterSerial):
 
 
 class DataSetterFile:
-	## TODO add file as source
-	def __init__(self):
-		self.start_time = time.time()
+	## file as data source
+	def __init__(self, total, filenames):
+		self.total = total
+		if isinstance(filenames, str):
+			filenames = [filenames]
+		self.filenames = filenames
+
+		self.file_idx = 0
+		self.fin = None
+
+	def open_next_file(self):
+		self.fin = open(self.filenames[self.file_idx], 'r')
+		self.file_idx += 1
 
 	def __call__(self, data_tmp, **kwargs):
-		if "filename" in kwargs.keys():
-			with open(kwargs['filename'], 'a', encoding='utf-8') as f:
-				f.write(str(data_tmp) + ',' + str(kwargs['idx_out']) + ',' + str(time.time() - self.start_time) + '\n')
+		## first time to open a file
+
+		if self.fin is None:
+			if self.file_idx < len(self.filenames):
+				self.open_next_file()
+			else:
+				raise Exception("No file provided!")
+
+		while True:
+			line = self.fin.readline()
+			if line:
+				## get new line
+				break
+			else:
+				## reach end of file
+				self.fin.close()
+				if self.file_idx == len(self.filenames):
+					raise FileEnd
+				else:
+					self.open_next_file()
+
+		_, frame_idx, data_time = parse_line(line, self.total, ',', data_out=data_tmp)
+		return frame_idx, int(datetime.timestamp(data_time)*1000000)
 
 
 class Proc:
@@ -102,8 +133,6 @@ class Proc:
 	## filename received from server
 	FILENAME_TEMPLATE = "record_%Y%m%d%H%M%S.csv"
 	FILENAME_TEMPLATE_RAW = "record_%Y%m%d%H%M%S_raw.csv"
-	filename = None
-	filename_id = 0
 
 
 	def __init__(self, n, data_setter, data_out, data_raw, idx_out, **kwargs):
@@ -130,6 +159,12 @@ class Proc:
 
 		## recording
 		self.record_raw = False
+		self.filename = None
+		self.filename_id = 0
+		self.tags = None
+		## copy tags from data setter to output file,
+		## if False, generate tags using current frame index and timestamp
+		self.copy_tags = False
 
 		## for multiprocessing communication
 		self.pipe_conn = None
@@ -141,7 +176,8 @@ class Proc:
 		V0=None, R0_RECI=None, convert=None, mask=None, 
 		filter_spatial=None, filter_spatial_cutoff=None, butterworth_order=None,
 		filter_temporal=None, filter_temporal_size=None, rw_cutoff=None,
-		cali_frames=None, cali_win_size=None, pipe_conn=None):
+		cali_frames=None, cali_win_size=None, pipe_conn=None,
+		output_filename=None, copy_tags=None):
 		if raw is not None:
 			self.my_raw = raw
 		if warm_up is not None:
@@ -178,6 +214,10 @@ class Proc:
 			self.my_WIN_SIZE = cali_win_size
 		if pipe_conn is not None:
 			self.pipe_conn = pipe_conn
+		if output_filename is not None:
+			self.filename = output_filename
+		if copy_tags is not None:
+			self.copy_tags = copy_tags
 
 	def reset(self):
 		## for output
@@ -199,7 +239,7 @@ class Proc:
 		np_array *= r0_reci
 
 	def get_raw_frame(self):
-		self.data_setter(self.data_tmp)
+		self.tags = self.data_setter(self.data_tmp)
 		if self.mask is not None:
 			self.data_reshape *= self.mask
 		if self.my_convert:
@@ -213,7 +253,7 @@ class Proc:
 			duration = self.cur_time - self.last_time
 			run_duration = self.cur_time - self.start_time
 			frames = self.idx_out.value - self.last_frame_idx
-			print(f"  frame rate: {frames/duration:.3f} fps  runing time: {run_duration:.3f} s")
+			print(f"  frame rate: {frames/duration:.3f} fps  running time: {run_duration:.3f} s")
 			self.last_frame_idx = self.idx_out.value
 			self.last_time = self.cur_time
 		if self.filename:
@@ -221,11 +261,10 @@ class Proc:
 				data_ptr = self.data_raw
 			else:
 				data_ptr = self.data_out
-			timestamp = int(self.cur_time*1000000)
-			write_line(self.filename, data_ptr, tags=[self.idx_out.value, timestamp])
-			# with open(self.filename, 'a', encoding='utf-8') as f:
-			# 	line_list = list(data_ptr) + [self.idx_out.value, int(self.cur_time*10**6)]
-			# 	f.write(','.join([str(item) for item in line_list])+'\n')
+			if not self.copy_tags:
+				timestamp = int(self.cur_time*1000000)
+				self.tags = [self.idx_out.value, timestamp]
+			write_line(self.filename, data_ptr, tags=self.tags)
 
 
 	def prepare_spatial(self):
@@ -445,6 +484,9 @@ class Proc:
 				self.get_raw_frame()
 			except SerialTimeout:
 				continue
+			except FileEnd:
+				print(f"Processing time: {time.time()-self.start_time:.3f} s")
+				break
 			self.cur_time = time.time()
 			self.data_raw[:] = self.data_tmp
 			if not self.my_raw:
@@ -463,7 +505,8 @@ class Proc:
 				pass
 
 	def run(self):
-		self.warm_up()
+		if self.WARM_UP > 0:
+			self.warm_up()
 
 		self.start_time = time.time()
 		self.reset()

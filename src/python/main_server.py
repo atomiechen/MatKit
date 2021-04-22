@@ -1,6 +1,7 @@
 from serial import Serial
 from serial.tools.list_ports import comports
 import argparse
+from datetime import datetime
 
 from multiprocessing import Process  # 进程
 from multiprocessing import Array  # 共享内存
@@ -9,12 +10,13 @@ from multiprocessing import Pipe  # 进程间通信管道
 
 import traceback
 
-from toolkit.server import Proc, Userver, DataSetterSerial, DataSetterDebug
+from toolkit.server import Proc, Userver, DataSetterSerial, DataSetterDebug, DataSetterFile
 from toolkit.server import FLAG, CustomException
 from toolkit.tools import (
 	parse_ip_port, load_config, blank_config, check_shape, parse_mask, 
 	check_config, print_sensor, make_action, DEST_SUFFIX
 )
+from toolkit.filemanager import clear_file
 
 
 N = 16  # sensor side length
@@ -35,6 +37,8 @@ ZLIM = 3
 FPS = 100
 
 DEBUG = False
+OUTPUT_FILENAME_TEMPLATE = "processed_%Y%m%d%H%M%S.csv"
+OUTPUT_FILENAME = datetime.now().strftime(OUTPUT_FILENAME_TEMPLATE)
 
 def enumerate_ports():
 	# 查看可用端口
@@ -74,6 +78,7 @@ def task_serial(paras):
 			cali_frames=paras['config']['process']['cali_frames'],
 			cali_win_size=paras['config']['process']['cali_win_size'],
 			pipe_conn=paras['pipe_proc'],
+			copy_tags=False,
 		)
 		my_proc.run()
 	except KeyboardInterrupt:
@@ -112,8 +117,38 @@ def task_server(paras):
 		paras['pipe_proc'].send((FLAG.FLAG_STOP,))
 
 def task_file(paras):
-	## TODO
-	pass
+	print(f"Processed data saved to: {paras['output']}")
+	my_setter = DataSetterFile(
+		paras['config']['sensor']['total'], 
+		paras['filenames'], 
+	)
+	my_proc = Proc(
+		paras['config']['sensor']['shape'], 
+		my_setter, 
+		paras['data_out'], 
+		paras['data_raw'], 
+		paras['idx_out'],
+		raw=False,
+		warm_up=0,
+		V0=paras['config']['process']['V0'],
+		R0_RECI=paras['config']['process']['R0_RECI'],
+		convert=paras['config']['process']['convert'],
+		mask=paras['config']['sensor']['mask'],
+		filter_spatial=paras['config']['process']['filter_spatial'],
+		filter_spatial_cutoff=paras['config']['process']['filter_spatial_cutoff'],
+		butterworth_order=paras['config']['process']['butterworth_order'],
+		filter_temporal=paras['config']['process']['filter_temporal'],
+		filter_temporal_size=paras['config']['process']['filter_temporal_size'],
+		rw_cutoff=paras['config']['process']['rw_cutoff'],
+		cali_frames=paras['config']['process']['cali_frames'],
+		cali_win_size=paras['config']['process']['cali_win_size'],
+		pipe_conn=None,
+		output_filename=paras['output'],
+		copy_tags=True,
+	)
+	## clear file content
+	clear_file(paras['output'])
+	my_proc.run()
 
 def prepare_config(args):
 	## load config and combine commandline arguments
@@ -181,7 +216,13 @@ def main(args):
 		"pipe_proc": pipe_proc,
 		"pipe_server": pipe_server,
 		"debug": args.debug,
+		"filenames": args.filenames,
+		"output": args.output,
 	}
+
+	if args.filenames:
+		task_file(paras)
+		return
 
 	if config['server_mode']['visualize']:
 		p = Process(target=task_serial, args=(paras,))
@@ -235,6 +276,10 @@ if __name__ == '__main__':
 	# parser.add_argument('-m', '--matplot', dest='matplot', action=make_action('store_true'), default=False, help="use matplotlib to plot")
 	parser.add_argument('--config', dest='config', action=make_action('store'), default=None, help="specify configuration file")
 	parser.add_argument('-d', '--debug', dest='debug', action=make_action('store_true'), default=DEBUG, help="debug mode")
+
+	parser.add_argument('filenames', nargs='*', action='store')
+	parser.add_argument('-o', dest='output', action='store', default=OUTPUT_FILENAME, help="output processed data to file")
+
 	args = parser.parse_args()
 
 	main(args)

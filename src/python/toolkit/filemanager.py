@@ -31,24 +31,25 @@ def readlines_file(filename):
 def findall(pattern):
 	return glob.glob(pattern)
 
-def parse_line(line, N=16, delim=','):
+def parse_line(line, points=256, delim=',', data_out=None):
 	paras = line.strip().split(delim)
-	data_parse = np.zeros(N*N)
+	if data_out is None:
+		data_out = np.zeros(points)
 	try:
-		for i in range(N*N):
-			data_parse[i] = float(paras[i])
+		for i in range(points):
+			data_out[i] = float(paras[i])
 	except:
 		pass
 	try:
-		frame_idx = int(paras[N*N])
+		frame_idx = int(paras[points])
 	except:
 		frame_idx = -1
 	try:
-		time_stamp = int(paras[N*N+1]) / 1000000
+		time_stamp = int(paras[points+1]) / 1000000
 		date_time = datetime.fromtimestamp(time_stamp)
 	except:
 		date_time = None
-	return data_parse, frame_idx, date_time
+	return data_out, frame_idx, date_time
 
 def write_line(filename, data, tags=None, delim=',', override=False):
 	items = [str(item) for item in data]
