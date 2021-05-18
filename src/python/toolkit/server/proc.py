@@ -4,6 +4,7 @@ import numpy as np
 import time
 from datetime import datetime
 from typing import Iterable
+from struct import calcsize, pack, unpack, unpack_from
 
 from serial import Serial
 from multiprocessing import Array  # 共享内存
@@ -28,11 +29,27 @@ class FILTER_TEMPORAL(Enum):
 
 
 class DataSetterSerial:
-	def __init__(self, total, baudrate, port, timeout=None):
+
+	## original protocol
+	DELIM = 0xFF
+	## robust protocol
+	HEAD = 0x5B
+	TAIL = 0x5D
+	ESCAPE = 0x5C
+	ESCAPE_ESCAPE = 0x00
+	ESCAPE_HEAD = 0x01
+	ESCAPE_TAIL = 0x02
+
+	def __init__(self, total, baudrate, port, timeout=None, **kwargs):
 		self.my_serial = self.connect_serial(baudrate, port, timeout)
 		self.total = total
-		self.DELIM = 0xFF
 		self.start_time = time.time()
+		self.imu = False
+		self.config(**kwargs)
+
+	def config(self, *, imu=None):
+		if imu is not None:
+			self.imu = imu
 
 	@staticmethod
 	def connect_serial(baudrate, port, timeout=None):
@@ -41,7 +58,13 @@ class DataSetterSerial:
 		print("串口详情参数：", ser)
 		return ser
 
-	def __call__(self, data_tmp, **kwargs):
+	def read_byte(self):
+		recv = self.my_serial.read()
+		if len(recv) != 1:
+			raise SerialTimeout
+		return recv[0]
+
+	def put_frame(self, data_array):
 		while True:
 			recv = self.my_serial.read()
 			if len(recv) != 1:
@@ -50,8 +73,53 @@ class DataSetterSerial:
 				data = self.my_serial.read(self.total)
 				if len(data) != self.total:
 					raise SerialTimeout
-				data_tmp[:self.total] = list(data)
+				data_array[:self.total] = list(data)
 				break
+
+	def put_frame_imu(self, data_array, data_imu):
+		## ref: https://blog.csdn.net/weixin_43277501/article/details/104805286
+		frame = bytearray()
+		begin = False
+		while True:
+			recv = self.read_byte()
+			if begin:
+				if recv == self.ESCAPE:
+					## escape bytes
+					recv = self.read_byte()
+					if recv == self.ESCAPE_ESCAPE:
+						frame.append(self.ESCAPE)
+					elif recv == self.ESCAPE_HEAD:
+						frame.append(self.HEAD)
+					elif recv == self.ESCAPE_TAIL:
+						frame.append(self.TAIL)
+					else:
+						print(f"Wrong ESCAPE byte: {recv}")
+				elif recv == self.TAIL:
+					## end a frame
+					if len(frame) != self.total + 12:
+						## wrong length, re-fetch a frame
+						print(f"Wrong! {len(frame)}")
+						frame = bytearray()
+						begin = False
+					else:
+						data_array[:self.total] = frame[:self.total]
+						if data_imu is not None:
+							pos = self.total
+							for i in range(6):
+								data_imu[i] = unpack_from(f"=h", frame, pos)[0]
+								pos += calcsize(f"=h")
+						break
+				else:
+					frame.append(recv)
+			elif recv == self.HEAD:
+				## begin a frame
+				begin = True
+
+	def __call__(self, data_array, data_imu=None, *args, **kwargs):
+		if self.imu:
+			self.put_frame_imu(data_array, data_imu)
+		else:
+			self.put_frame(data_array)
 
 
 class DataSetterDebug(DataSetterSerial):
@@ -77,7 +145,7 @@ class DataSetterFile:
 		self.fin = open(self.filenames[self.file_idx], 'r')
 		self.file_idx += 1
 
-	def __call__(self, data_tmp, **kwargs):
+	def __call__(self, data_tmp, *args, **kwargs):
 		## first time to open a file
 
 		if self.fin is None:
@@ -146,17 +214,6 @@ class Proc:
 		self.total = self.n[0] * self.n[1]
 		self.cols = self.n[1]//2 + 1
 
-		## intermediate data
-		self.data_tmp = np.zeros(self.total, dtype=float)
-		self.data_reshape = self.data_tmp.reshape(self.n[0], self.n[1])
-		## output data
-		# self.data_out = Array('d', self.total)  # d for double
-		## raw data
-		# self.data_raw = np.zeros(self.total, dtype=float)
-		self.data_out = data_out
-		self.data_raw = data_raw
-		self.idx_out = idx_out
-
 		## recording
 		self.record_raw = False
 		self.filename = None
@@ -169,7 +226,20 @@ class Proc:
 		## for multiprocessing communication
 		self.pipe_conn = None
 
+		self.imu = False
 		self.config(**kwargs)
+
+		## intermediate data
+		self.data_tmp = np.zeros(self.total, dtype=float)
+		self.data_imu = np.zeros(6, dtype=float)
+		self.data_reshape = self.data_tmp.reshape(self.n[0], self.n[1])
+		## output data
+		# self.data_out = Array('d', self.total)  # d for double
+		## raw data
+		# self.data_raw = np.zeros(self.total, dtype=float)
+		self.data_out = data_out
+		self.data_raw = data_raw
+		self.idx_out = idx_out
 
 
 	def config(self, *, raw=None, warm_up=None,
@@ -177,7 +247,8 @@ class Proc:
 		filter_spatial=None, filter_spatial_cutoff=None, butterworth_order=None,
 		filter_temporal=None, filter_temporal_size=None, rw_cutoff=None,
 		cali_frames=None, cali_win_size=None, pipe_conn=None,
-		output_filename=None, copy_tags=None):
+		output_filename=None, copy_tags=None,
+		imu=None):
 		if raw is not None:
 			self.my_raw = raw
 		if warm_up is not None:
@@ -218,6 +289,8 @@ class Proc:
 			self.filename = output_filename
 		if copy_tags is not None:
 			self.copy_tags = copy_tags
+		if imu is not None:
+			self.imu = imu
 
 	def reset(self):
 		## for output
@@ -239,7 +312,7 @@ class Proc:
 		np_array *= r0_reci
 
 	def get_raw_frame(self):
-		self.tags = self.data_setter(self.data_tmp)
+		self.tags = self.data_setter(self.data_tmp, self.data_imu)
 		if self.mask is not None:
 			self.data_reshape *= self.mask
 		if self.my_convert:
