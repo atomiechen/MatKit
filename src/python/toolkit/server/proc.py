@@ -65,16 +65,18 @@ class DataSetterSerial:
 		return recv[0]
 
 	def put_frame(self, data_array):
+		frame = []
 		while True:
-			recv = self.my_serial.read()
-			if len(recv) != 1:
-				raise SerialTimeout
-			if recv[0] == self.DELIM:
-				data = self.my_serial.read(self.total)
-				if len(data) != self.total:
-					raise SerialTimeout
-				data_array[:self.total] = list(data)
-				break
+			recv = self.read_byte()
+			if recv == self.DELIM:
+				if len(frame) != self.total:
+					print(f"Wrong frame size: {len(frame)}")
+					frame = []
+				else:
+					data_array[:self.total] = frame
+					break
+			else:
+				frame.append(recv)
 
 	def put_frame_imu(self, data_array, data_imu):
 		## ref: https://blog.csdn.net/weixin_43277501/article/details/104805286
@@ -98,7 +100,7 @@ class DataSetterSerial:
 					## end a frame
 					if len(frame) != self.total + 12:
 						## wrong length, re-fetch a frame
-						print(f"Wrong! {len(frame)}")
+						print(f"Wrong frame size: {len(frame)}")
 						frame = bytearray()
 						begin = False
 					else:
@@ -327,6 +329,8 @@ class Proc:
 			run_duration = self.cur_time - self.start_time
 			frames = self.idx_out.value - self.last_frame_idx
 			print(f"  frame rate: {frames/duration:.3f} fps  running time: {run_duration:.3f} s")
+			if self.imu:
+				print(f"  {self.data_imu}")
 			self.last_frame_idx = self.idx_out.value
 			self.last_time = self.cur_time
 		if self.filename:
