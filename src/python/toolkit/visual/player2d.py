@@ -7,13 +7,15 @@ from matplotlib.offsetbox import AnchoredText
 
 class Player2D:
 	## generator: data generator
+	## channels: number of data channels
 	## timespan: visible time span, in seconds
 	## ytop & ybottom: y-axis range, auto calculated by Matplotlib if not set
 	## fps: frame rate, in frames per second
 	## show_value: show value on top or not
-	def __init__(self, generator, timespan=5, ytop=None, ybottom=None, fps=100, show_value=True):
-		self.timespan = timespan
+	def __init__(self, generator, channels=1, timespan=5, ytop=None, ybottom=None, fps=100, show_value=True):
 		self.generator = generator
+		self.channels = channels
+		self.timespan = timespan
 		self.fps = fps
 		self.ytop = ytop
 		self.ybottom = ybottom
@@ -21,7 +23,9 @@ class Player2D:
 
 		## data
 		self.x = deque([])
-		self.y = deque([])
+		self.y = []
+		for i in range(self.channels):
+			self.y.append(deque([]))
 		self.cur_x = 0
 
 		## visualization
@@ -42,14 +46,20 @@ class Player2D:
 
 		self.cur_x = self.cur_time - self.start_time
 		self.x.append(self.cur_x)
-		self.y.append(data)
+		try:
+			for i in range(self.channels):
+				self.y[i].append(data[i])
+		except:
+			self.y[0].append(data)
 
 		if self.cur_x - self.x[0] > self.timespan:
 			self.x.popleft()
-			self.y.popleft()
+			for i in range(self.channels):
+				self.y[i].popleft()
 
 		self.ax.clear()
-		self.ax.plot(self.x, self.y)
+		for i in range(self.channels):
+			self.ax.plot(self.x, self.y[i])
 		self.ax.set_xlim(left=max(-0.1, self.cur_x-self.timespan), right=self.cur_x+self.timespan*0.3)
 		if self.ytop is not None:
 			self.ax.set_ylim(top=self.ytop)
@@ -57,7 +67,11 @@ class Player2D:
 			self.ax.set_ylim(bottom=self.ybottom)
 
 		if self.show_value:
-			value_str = f"Value: {data}"
+			value_str = f"Value: "
+			try:
+				value_str += ", ".join([str(data[i]) for i in range(self.channels)])
+			except:
+				value_str += f"{data}"
 
 			plt.text(0.01, 1.02, value_str, transform=plt.gca().transAxes)
 			# self.ax.add_artist(
@@ -113,11 +127,10 @@ if __name__ == '__main__':
 	import random
 	def gen_random():
 		while True:
-			a = random.random()
-			yield a
+			yield random.random(), random.random()
 
 	my_generator = gen_random()
-	my_player = Player2D(generator=my_generator, timespan=10, ybottom=-0.1, 
+	my_player = Player2D(generator=my_generator, channels=2, timespan=10, ybottom=-0.1, 
 						ytop=1.1, show_value=True)
 	my_player.run_stream()
 
