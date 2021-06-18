@@ -64,7 +64,7 @@ class DataSetterSerial:
 			raise SerialTimeout
 		return recv[0]
 
-	def put_frame(self, data_array):
+	def put_frame_org(self, data_array):
 		frame = []
 		while True:
 			recv = self.read_byte()
@@ -78,7 +78,7 @@ class DataSetterSerial:
 			else:
 				frame.append(recv)
 
-	def put_frame_imu(self, data_array, data_imu):
+	def put_frame_secure(self, frame_size, data_array, data_imu):
 		## ref: https://blog.csdn.net/weixin_43277501/article/details/104805286
 		frame = bytearray()
 		begin = False
@@ -98,7 +98,7 @@ class DataSetterSerial:
 						print(f"Wrong ESCAPE byte: {recv}")
 				elif recv == self.TAIL:
 					## end a frame
-					if len(frame) != self.total + 12:
+					if len(frame) != frame_size:
 						## wrong length, re-fetch a frame
 						print(f"Wrong frame size: {len(frame)}")
 						frame = bytearray()
@@ -119,9 +119,10 @@ class DataSetterSerial:
 
 	def __call__(self, data_array, data_imu=None, *args, **kwargs):
 		if self.imu:
-			self.put_frame_imu(data_array, data_imu)
+			self.put_frame_secure(self.total + 12, data_array, data_imu)
 		else:
-			self.put_frame(data_array)
+			self.put_frame_secure(self.total, data_array, None)
+			# self.put_frame_org(data_array)
 
 
 class DataSetterDebug(DataSetterSerial):
