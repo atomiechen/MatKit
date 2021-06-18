@@ -56,7 +56,7 @@ def task_serial(paras):
 				paras['config']['serial']['baudrate'], 
 				paras['config']['serial']['port'], 
 				paras['config']['serial']['timeout'],
-				imu=paras['imu'],
+				imu=paras['config']['server_mode']['imu'],
 			)
 		my_proc = Proc(
 			paras['config']['sensor']['shape'], 
@@ -80,7 +80,7 @@ def task_serial(paras):
 			cali_win_size=paras['config']['process']['cali_win_size'],
 			pipe_conn=paras['pipe_proc'],
 			copy_tags=False,
-			imu=paras['imu'],
+			imu=paras['config']['server_mode']['imu'],
 		)
 		my_proc.run()
 	except KeyboardInterrupt:
@@ -187,6 +187,8 @@ def prepare_config(args):
 		config['server_mode']['visualize'] = args.visualize
 	if config['server_mode']['enumerate'] is None or hasattr(args, 'enumerate'+DEST_SUFFIX):
 		config['server_mode']['enumerate'] = args.enumerate
+	if config['server_mode']['imu'] is None or hasattr(args, 'imu'+DEST_SUFFIX):
+		config['server_mode']['imu'] = args.imu
 	check_config(config)
 	return config
 
@@ -220,7 +222,6 @@ def main(args):
 		"debug": args.debug,
 		"filenames": args.filenames,
 		"output": args.output,
-		"imu": args.imu,
 	}
 
 	if args.filenames:

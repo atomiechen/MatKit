@@ -11,6 +11,8 @@ server_mode:
   visualize: ~
   ## enumerate all serial ports
   enumerate: ~
+  ## support IMU data
+  imu: ~
 
 client_mode:
   ## make client present raw data
@@ -55,7 +57,7 @@ process:
   ## spatial filter: none, ideal, butterworth, gaussian
   filter_spatial: ~
   ## spatial filter cut-off freq: 3.5
-  filter_spatial_cutoff: 
+  filter_spatial_cutoff: ~
   ## Butterworth filter order: 2
   butterworth_order: ~
   ## temporal filter: none, moving average, rectangular window
