@@ -56,6 +56,7 @@ def task_serial(paras):
 				paras['config']['serial']['baudrate'], 
 				paras['config']['serial']['port'], 
 				paras['config']['serial']['timeout'],
+				imu=paras['imu'],
 			)
 		my_proc = Proc(
 			paras['config']['sensor']['shape'], 
@@ -79,6 +80,7 @@ def task_serial(paras):
 			cali_win_size=paras['config']['process']['cali_win_size'],
 			pipe_conn=paras['pipe_proc'],
 			copy_tags=False,
+			imu=paras['imu'],
 		)
 		my_proc.run()
 	except KeyboardInterrupt:
@@ -218,6 +220,7 @@ def main(args):
 		"debug": args.debug,
 		"filenames": args.filenames,
 		"output": args.output,
+		"imu": args.imu,
 	}
 
 	if args.filenames:
@@ -279,6 +282,8 @@ if __name__ == '__main__':
 
 	parser.add_argument('filenames', nargs='*', action='store')
 	parser.add_argument('-o', dest='output', action='store', default=OUTPUT_FILENAME, help="output processed data to file")
+
+	parser.add_argument('-i', '--imu', dest='imu', action=make_action('store_true'), default=False, help="support IMU")
 
 	args = parser.parse_args()
 
