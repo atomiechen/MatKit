@@ -11,6 +11,8 @@ server_mode:
   visualize: ~
   ## enumerate all serial ports
   enumerate: ~
+  ## support IMU data
+  imu: ~
 
 client_mode:
   ## make client present raw data
@@ -71,7 +73,7 @@ process:
   ## spatial filter: none, ideal, butterworth, gaussian
   filter_spatial: ~
   ## spatial filter cut-off freq: 3.5
-  filter_spatial_cutoff: 
+  filter_spatial_cutoff: 2.5
   ## Butterworth filter order: 2
   butterworth_order: ~
   ## temporal filter: none, moving average, rectangular window
@@ -83,7 +85,7 @@ process:
   ## calibrative frames, 0 for no calibration: 0, 200
   cali_frames: ~
   ## calibration frame window size, 0 for static and >0 for dynamic: 0, 10000
-  cali_win_size: ~
+  cali_win_size: 0
   ## interpolation shape, default to sensor.shape
   interp: ~
   ## interpolation order: 3
@@ -95,7 +97,7 @@ process:
   ## blob filter threshole: 0.1, 0.15
   threshold: ~
   ## special check for certain hardwares: false
-  special_check: ~
+  special_check: true
 
 pointing:
   ## value bound for checking cursor moving state: 0
