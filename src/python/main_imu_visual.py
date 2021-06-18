@@ -12,6 +12,7 @@ from toolkit.visual.player2d import Player2D
 
 
 BAUDRATE = 1000000
+TIMEOUT = 1  # in seconds
 devices_found = comports()
 PORT = None
 try:
@@ -27,8 +28,15 @@ def enumerate_ports():
 	for item in devices_found:
 		print(item)
 
-def task_serial(measure, flag, port, baudrate):
-	my_serial = Serial(port, baudrate)
+
+def task_serial(measure, flag, port, baudrate, timeout=None):
+	def read_byte():
+		recv = my_serial.read()
+		if len(recv) != 1:
+			raise Exception("Serial timeout!")
+		return recv[0]
+
+	my_serial = Serial(port, baudrate, timeout=timeout)
 	print(my_serial)
 
 	data_imu = np.zeros(6, dtype=float)
@@ -38,11 +46,11 @@ def task_serial(measure, flag, port, baudrate):
 	frame = bytearray()
 	begin = False
 	while flag.value != 0:
-		recv = my_serial.read()[0]
+		recv = read_byte()
 		if begin:
 			if recv == 0x5C:
 				## escape bytes
-				recv = my_serial.read()[0]
+				recv = read_byte()
 				if recv == 0x00:
 					frame.append(0x5C)
 				elif recv == 0x01:
@@ -63,7 +71,8 @@ def task_serial(measure, flag, port, baudrate):
 						for i in range(6):
 							data_imu[i] = unpack_from(f"=h", frame, pos)[0]
 							pos += calcsize(f"=h")
-						measure[:3] = data_imu[3:]
+						# measure[:3] = data_imu[:3]  ## accelerometer
+						measure[:3] = data_imu[3:]  ## gyroscope
 				frame = bytearray()
 				begin = False
 			else:
@@ -71,6 +80,7 @@ def task_serial(measure, flag, port, baudrate):
 		elif recv == 0x5B:
 			## begin a frame
 			begin = True
+	my_serial.close()
 
 def task_debug(measure, flag):
 	import random
@@ -94,12 +104,14 @@ def main(args):
 			yield measure
 
 	if not args.debug:
-		p = Process(target=task_serial, args=(measure,flag,args.port,args.baudrate))
+		p = Process(target=task_serial, args=(measure,flag,args.port,args.baudrate,args.timeout))
 	else:
 		p = Process(target=task_debug, args=(measure,flag,))
 	p.start()
 
-	my_player = Player2D(generator=gen_wrapper(), channels=3, timespan=10)
+	my_player = Player2D(generator=gen_wrapper(), channels=3, timespan=10, 
+						ytop=2000, ybottom=-2000)
+						# )
 	my_player.run_stream()
 
 	flag.value = 0
@@ -111,6 +123,7 @@ if __name__ == '__main__':
 	parser.add_argument('-e', dest='enumerate', action=('store_true'), default=False, help="enumerate all serial ports")
 	parser.add_argument('-p', dest='port', action=('store'), default=PORT, help="specify serial port")
 	parser.add_argument('-b', dest='baudrate', action=('store'), default=BAUDRATE, type=int, help="specify baudrate")
+	parser.add_argument('-t', dest='timeout', action=('store'), default=TIMEOUT, type=float, help="specify timeout in seconds")
 	parser.add_argument('-d', '--debug', dest='debug', action=('store_true'), default=False, help="debug mode")
 
 	args = parser.parse_args()
