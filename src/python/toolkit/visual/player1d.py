@@ -3,9 +3,15 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib import animation
 from matplotlib.offsetbox import AnchoredText
+import sys
+
+from .player import Player
 
 
-class Player2D:
+class Player1D(Player):
+
+	backend = "matplotlib"
+
 	## generator: data generator
 	## channels: number of data channels
 	## timespan: visible time span, in seconds
@@ -83,9 +89,11 @@ class Player2D:
 
 
 	def _start(self):
+		super()._start()
 		plt.show()
 
 	def _close(self):
+		super()._close()
 		plt.close()
 
 	def toggle_pause(self, *args, **kwargs):
@@ -96,31 +104,17 @@ class Player2D:
 		else:
 			self.start_time += time.time() - self.pause_time
 
-	def update_stream(self, *args, **kwargs):
-		if not self.pause:
-			try:
-				data_raw = next(self.generator)
-				self._draw(data_raw)	
-			except StopIteration:
-				self._close()
-
 	def _prepare_stream(self):
 		self.fig.canvas.mpl_connect('key_press_event', self.on_key_stream)
 		timeout = 1000 / self.fps
 		self.ani = animation.FuncAnimation(self.fig, self.update_stream, interval=timeout)
 
 	def on_key_stream(self, event):
+		sys.stdout.flush()
 		if event.key == ' ':
 			self.toggle_pause()
 		elif event.key == 'q':
 			self._close()
-
-	def run_stream(self):
-		if not self.generator:
-			raise Exception("generator not set")
-		self.pause = False
-		self._prepare_stream()
-		self._start()
 
 
 if __name__ == '__main__':
@@ -130,7 +124,7 @@ if __name__ == '__main__':
 			yield random.random(), random.random()
 
 	my_generator = gen_random()
-	my_player = Player2D(generator=my_generator, channels=2, timespan=10, ybottom=-0.1, 
+	my_player = Player1D(generator=my_generator, channels=2, timespan=10, ybottom=-0.1, 
 						ytop=1.1, show_value=True)
 	my_player.run_stream()
 

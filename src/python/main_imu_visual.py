@@ -8,7 +8,7 @@ from multiprocessing import Process  # 进程
 from multiprocessing import Array  # 共享内存
 from multiprocessing import Value  # 共享内存
 
-from toolkit.visual.player2d import Player2D
+from toolkit.visual.player1d import Player1D
 
 
 BAUDRATE = 1000000
@@ -118,7 +118,7 @@ def main(args):
 	else:
 		ytop = None
 		ybottom = None
-	my_player = Player2D(generator=gen_wrapper(), channels=3, timespan=10, 
+	my_player = Player1D(generator=gen_wrapper(), channels=3, timespan=10, 
 						ytop=ytop, ybottom=ybottom)
 	my_player.run_stream()
 

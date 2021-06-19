@@ -25,42 +25,10 @@ class MODE(IntEnum):
 	INTERACTIVE = 1
 
 
-class Player3D:
-
-	"""Base class of 3D player for data visualization
-
-	Use positional arguments to set zlim and N; use keyword arguments to
-	set other parameters.
-	
-	Attributes:
-		zlim (int/float, optional): z-axis max value. Defaults to 3.
-		N (int, optional): sensor side length. Defaults to 16.
-		generator (GeneratorType, optional): generator to yield 
-			data for stream mode. Defaults to None.
-		dataset (indexable container, optional): data set for 
-			interactive mode. Defaults to None.
-		infoset (indexable container of str, optional): additional 
-			information set for interactive mode, should have the 
-			same size as dataset. Defaults to None.
-		step (int, optional): fast forward/backward step for 
-			interactive mode. Defaults to 50.
-		fps (int/float, optional): frames per second when playing. 
-			Defaults to 200.
-	"""
-	
+class Player:
 	backend = "None (should be altered by subclass)"  # backend used for visualization
 
-	def __init__(self, zlim=3, N=16, **kwargs):	
-		"""constructor
-		
-		Args:
-			zlim (int/float, optional): z-axis max value. Defaults to 3.
-			N (int, optional): sensor side length. Defaults to 16.
-			**kwargs: keyword arguments passed to config()
-		"""		
-		super().__init__()
-		self.zlim = zlim
-		self.N = N
+	def __init__(self, *args, **kwargs):
 		## variables for interactive playing
 		self.cur_idx = 0  # current data slice index
 		self.max_idx = 0  # max data slice index
@@ -92,32 +60,6 @@ class Player3D:
 			self.fps = fps
 		if widgets is not None:
 			self.widgets = widgets
-
-	@property
-	def zlim(self):
-		return self._zlim
-
-	@zlim.setter
-	def zlim(self, value):
-		if value <= 0:
-			raise Exception("zlim must be greater than 0!")
-		else:
-			self._zlim = value
-	
-	@property
-	def N(self):
-		return self._N
-	
-	@N.setter
-	def N(self, value):
-		if isinstance(value, int):
-			value = [value, value]
-
-		try:
-			value[0], value[1]
-			self._N = value
-		except:
-			raise Exception("invalid N type!")
 
 	@property
 	def generator(self):
@@ -358,6 +300,68 @@ class Player3D:
 			NotImplementedError: Not implemented
 		"""
 		raise NotImplementedError("_prepare_interactive()")
+
+
+class Player3D(Player):
+
+	"""Base class of 3D player for data visualization
+
+	Use positional arguments to set zlim and N; use keyword arguments to
+	set other parameters.
+	
+	Attributes:
+		zlim (int/float, optional): z-axis max value. Defaults to 3.
+		N (int, optional): sensor side length. Defaults to 16.
+		generator (GeneratorType, optional): generator to yield 
+			data for stream mode. Defaults to None.
+		dataset (indexable container, optional): data set for 
+			interactive mode. Defaults to None.
+		infoset (indexable container of str, optional): additional 
+			information set for interactive mode, should have the 
+			same size as dataset. Defaults to None.
+		step (int, optional): fast forward/backward step for 
+			interactive mode. Defaults to 50.
+		fps (int/float, optional): frames per second when playing. 
+			Defaults to 200.
+	"""
+	
+	def __init__(self, zlim=3, N=16, **kwargs):	
+		"""constructor
+		
+		Args:
+			zlim (int/float, optional): z-axis max value. Defaults to 3.
+			N (int, optional): sensor side length. Defaults to 16.
+			**kwargs: keyword arguments passed to config()
+		"""		
+		super().__init__()
+		self.zlim = zlim
+		self.N = N
+
+	@property
+	def zlim(self):
+		return self._zlim
+
+	@zlim.setter
+	def zlim(self, value):
+		if value <= 0:
+			raise Exception("zlim must be greater than 0!")
+		else:
+			self._zlim = value
+	
+	@property
+	def N(self):
+		return self._N
+	
+	@N.setter
+	def N(self, value):
+		if isinstance(value, int):
+			value = [value, value]
+
+		try:
+			value[0], value[1]
+			self._N = value
+		except:
+			raise Exception("invalid N type!")
 
 
 if __name__ == '__main__':
