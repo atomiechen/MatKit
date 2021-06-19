@@ -29,7 +29,7 @@ def enumerate_ports():
 		print(item)
 
 
-def task_serial(measure, flag, port, baudrate, timeout=None):
+def task_serial(measure, flag, port, baudrate, timeout=None, gyro=False):
 	def read_byte():
 		recv = my_serial.read()
 		if len(recv) != 1:
@@ -71,8 +71,10 @@ def task_serial(measure, flag, port, baudrate, timeout=None):
 						for i in range(6):
 							data_imu[i] = unpack_from(f"=h", frame, pos)[0]
 							pos += calcsize(f"=h")
-						# measure[:3] = data_imu[:3]  ## accelerometer
-						measure[:3] = data_imu[3:]  ## gyroscope
+						if gyro:
+							measure[:3] = data_imu[3:]  ## gyroscope
+						else:
+							measure[:3] = data_imu[:3]  ## accelerometer
 				frame = bytearray()
 				begin = False
 			else:
@@ -104,14 +106,20 @@ def main(args):
 			yield measure
 
 	if not args.debug:
-		p = Process(target=task_serial, args=(measure,flag,args.port,args.baudrate,args.timeout))
+		p = Process(target=task_serial, args=(measure, flag, args.port, 
+									args.baudrate, args.timeout, args.gyro))
 	else:
 		p = Process(target=task_debug, args=(measure,flag,))
 	p.start()
 
+	if args.gyro:
+		ytop = 2000
+		ybottom = -2000
+	else:
+		ytop = None
+		ybottom = None
 	my_player = Player2D(generator=gen_wrapper(), channels=3, timespan=10, 
-						ytop=2000, ybottom=-2000)
-						# )
+						ytop=ytop, ybottom=ybottom)
 	my_player.run_stream()
 
 	flag.value = 0
@@ -125,6 +133,7 @@ if __name__ == '__main__':
 	parser.add_argument('-b', dest='baudrate', action=('store'), default=BAUDRATE, type=int, help="specify baudrate")
 	parser.add_argument('-t', dest='timeout', action=('store'), default=TIMEOUT, type=float, help="specify timeout in seconds")
 	parser.add_argument('-d', '--debug', dest='debug', action=('store_true'), default=False, help="debug mode")
+	parser.add_argument('-g', '--gyro', dest='gyro', action=('store_true'), default=False, help="show gyroscope data (otherwise accelerometer)")
 
 	args = parser.parse_args()
 
