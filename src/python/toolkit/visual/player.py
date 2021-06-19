@@ -325,7 +325,7 @@ class Player3D(Player):
 			Defaults to 200.
 	"""
 	
-	def __init__(self, zlim=3, N=16, **kwargs):	
+	def __init__(self, zlim=3, N=16, *args, **kwargs):	
 		"""constructor
 		
 		Args:
@@ -333,7 +333,7 @@ class Player3D(Player):
 			N (int, optional): sensor side length. Defaults to 16.
 			**kwargs: keyword arguments passed to config()
 		"""		
-		super().__init__()
+		super().__init__(*args, **kwargs)
 		self.zlim = zlim
 		self.N = N
 

@@ -12,17 +12,15 @@ class Player1D(Player):
 
 	backend = "matplotlib"
 
-	## generator: data generator
 	## channels: number of data channels
 	## timespan: visible time span, in seconds
 	## ytop & ybottom: y-axis range, auto calculated by Matplotlib if not set
 	## fps: frame rate, in frames per second
 	## show_value: show value on top or not
-	def __init__(self, generator, channels=1, timespan=5, ytop=None, ybottom=None, fps=100, show_value=True):
-		self.generator = generator
+	def __init__(self, channels=1, timespan=5, ytop=None, ybottom=None, show_value=True, *args, **kwargs):
+		super().__init__(*args, **kwargs)
 		self.channels = channels
 		self.timespan = timespan
-		self.fps = fps
 		self.ytop = ytop
 		self.ybottom = ybottom
 		self.show_value = show_value
