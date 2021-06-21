@@ -11,8 +11,6 @@ server_mode:
   visualize: ~
   ## enumerate all serial ports
   enumerate: ~
-  ## support IMU data
-  imu: ~
 
 client_mode:
   ## make client present raw data
@@ -36,6 +34,10 @@ serial:
   timeout: ~
   ## serial port
   port: ~
+  ## data transmission protocol: simple, secure
+  protocol: ~
+  ## support IMU data
+  imu: ~
 
 connection:  ## use defaults
   ## use UDP or UNIX domain socket

@@ -28,6 +28,11 @@ class FILTER_TEMPORAL(Enum):
 	RW = "rectangular window"  # rectangular window filter (sinc)
 
 
+class DATA_PROTOCOL(Enum):
+	SIMPLE = "simple"  # 255 as delimiter
+	SECURE = "secure"  # secure protocol using escape character
+
+
 class DataSetterSerial:
 
 	## original protocol
@@ -40,6 +45,8 @@ class DataSetterSerial:
 	ESCAPE_HEAD = 0x01
 	ESCAPE_TAIL = 0x02
 
+	protocol = DATA_PROTOCOL.SIMPLE
+
 	def __init__(self, total, baudrate, port, timeout=None, **kwargs):
 		self.my_serial = self.connect_serial(baudrate, port, timeout)
 		self.total = total
@@ -47,9 +54,14 @@ class DataSetterSerial:
 		self.imu = False
 		self.config(**kwargs)
 
-	def config(self, *, imu=None):
+	def config(self, *, imu=None, protocol=None):
 		if imu is not None:
 			self.imu = imu
+		if protocol is not None:
+			try:
+				self.protocol = DATA_PROTOCOL(protocol)
+			except:
+				print(f"Invalid data protocol: '{protocol}'! Use {self.protocol} instead.")
 
 	@staticmethod
 	def connect_serial(baudrate, port, timeout=None):
@@ -64,7 +76,7 @@ class DataSetterSerial:
 			raise SerialTimeout
 		return recv[0]
 
-	def put_frame_org(self, data_array):
+	def put_frame_simple(self, data_array):
 		frame = []
 		while True:
 			recv = self.read_byte()
@@ -118,11 +130,13 @@ class DataSetterSerial:
 				begin = True
 
 	def __call__(self, data_array, data_imu=None, *args, **kwargs):
-		if self.imu:
-			self.put_frame_secure(self.total + 12, data_array, data_imu)
-		else:
-			self.put_frame_secure(self.total, data_array, None)
-			# self.put_frame_org(data_array)
+		if self.protocol == DATA_PROTOCOL.SIMPLE:
+			self.put_frame_simple(data_array)
+		elif self.protocol == DATA_PROTOCOL.SECURE:
+			if self.imu:
+				self.put_frame_secure(self.total + 12, data_array, data_imu)
+			else:
+				self.put_frame_secure(self.total, data_array, None)
 
 
 class DataSetterDebug(DataSetterSerial):
