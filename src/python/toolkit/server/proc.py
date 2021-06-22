@@ -45,14 +45,16 @@ class DataSetterSerial:
 	ESCAPE_HEAD = 0x01
 	ESCAPE_TAIL = 0x02
 
+	imu = False
 	protocol = DATA_PROTOCOL.SIMPLE
 
 	def __init__(self, total, baudrate, port, timeout=None, **kwargs):
 		self.my_serial = self.connect_serial(baudrate, port, timeout)
 		self.total = total
 		self.start_time = time.time()
-		self.imu = False
 		self.config(**kwargs)
+
+		self.frame_size = (self.total + 12) if self.imu else self.total
 
 	def config(self, *, imu=None, protocol=None):
 		if imu is not None:
@@ -76,7 +78,7 @@ class DataSetterSerial:
 			raise SerialTimeout
 		return recv[0]
 
-	def put_frame_simple(self, data_array):
+	def put_frame_simple(self, data_pressure):
 		frame = []
 		while True:
 			recv = self.read_byte()
@@ -85,12 +87,12 @@ class DataSetterSerial:
 					print(f"Wrong frame size: {len(frame)}")
 					frame = []
 				else:
-					data_array[:self.total] = frame
+					data_pressure[:self.total] = frame
 					break
 			else:
 				frame.append(recv)
 
-	def put_frame_secure(self, frame_size, data_array, data_imu):
+	def put_frame_secure(self, data_pressure, data_imu):
 		## ref: https://blog.csdn.net/weixin_43277501/article/details/104805286
 		frame = bytearray()
 		begin = False
@@ -110,15 +112,15 @@ class DataSetterSerial:
 						print(f"Wrong ESCAPE byte: {recv}")
 				elif recv == self.TAIL:
 					## end a frame
-					if len(frame) != frame_size:
+					if len(frame) != self.frame_size:
 						## wrong length, re-fetch a frame
 						print(f"Wrong frame size: {len(frame)}")
 						frame = bytearray()
 						begin = False
 					else:
-						data_array[:self.total] = frame[:self.total]
-						if data_imu is not None:
-							pos = self.total
+						pos = self.total
+						data_pressure[:pos] = frame[:pos]
+						if self.imu:
 							for i in range(6):
 								data_imu[i] = unpack_from(f"=h", frame, pos)[0]
 								pos += calcsize(f"=h")
@@ -129,14 +131,11 @@ class DataSetterSerial:
 				## begin a frame
 				begin = True
 
-	def __call__(self, data_array, data_imu=None, *args, **kwargs):
+	def __call__(self, data_pressure, data_imu=None, *args, **kwargs):
 		if self.protocol == DATA_PROTOCOL.SIMPLE:
-			self.put_frame_simple(data_array)
+			self.put_frame_simple(data_pressure)
 		elif self.protocol == DATA_PROTOCOL.SECURE:
-			if self.imu:
-				self.put_frame_secure(self.total + 12, data_array, data_imu)
-			else:
-				self.put_frame_secure(self.total, data_array, None)
+			self.put_frame_secure(data_pressure, data_imu)
 
 
 class DataSetterDebug(DataSetterSerial):
