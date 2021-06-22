@@ -51,8 +51,8 @@ class Interpolator:
 		"""
 		self.config(**kwargs)
 		shape = np.shape(data)
-		if shape[0] != shape[1]:
-			raise Exception(f"Not a square array! get {shape[0]} * {shape[1]} instead")
+		# if shape[0] != shape[1]:
+			# raise Exception(f"Not a square array! get {shape[0]} * {shape[1]} instead")
 		ratio = [self.n[0]/shape[0], self.n[1]/shape[1]]
 		if ratio == 1:  # do nothing
 			return data
