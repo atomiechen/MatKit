@@ -44,7 +44,7 @@ class Player:
 		self.config(**kwargs)
 
 	def config(self, *, generator=None, dataset=None, infoset=None, 
-		step=None, fps=None, widgets=None):
+		step=None, fps=None, widgets=None, **kwargs):
 		"""configure keyword parameters
 		
 		"""		
