@@ -1,9 +1,11 @@
 import argparse
+from os import times
 try:
 	import readline
 except ImportError:
 	pass
 import copy
+import time
 
 from toolkit.uclient import CMD, Uclient
 from toolkit.process import Processor
@@ -17,6 +19,10 @@ ZLIM = 3
 FPS = 194
 TH = 0.15
 UDP = False
+RIGHT_THRESHOLD = 6
+LEFT_THRESHOLD = 2
+UP_THRESHOLD = 2
+DOWN_THRESHOLD = 2
 
 def run_client_interactive(my_client):
 	while True:
@@ -36,6 +42,70 @@ def run_client_interactive(my_client):
 			continue
 
 		my_client.interactive_cmd(my_cmd)
+
+def run_client_output(my_client):
+	last_press = False
+	last_direction = "right"
+	last_timer = 0
+	dtime = 0
+	while True:
+		time.sleep(0.01)
+		my_client.send_cmd(1)
+		max_row = 0
+		for i in range(int(len(my_client.recv_frame()[0]) / 6)):
+			sum_row = 0
+			for j in range(6):
+				sum_row += my_client.recv_frame()[0][i * 6 + j]
+			if sum_row > max_row:
+				max_row = sum_row
+				max_id = i
+		# print(max_row)
+		# print(max_id)
+		if max_id < 3 or max_id > 21:
+			if max_row > RIGHT_THRESHOLD:
+				# print(max_row)
+				# print(max_id)
+				last_direction = "right"
+				last_press = True
+				dtime = int((time.time() - last_timer) * 1000)
+				if dtime > 500:
+					print((dtime - 500) / 1000)
+				continue
+		elif max_id <= 9:
+			if max_row > DOWN_THRESHOLD:
+				# print(max_row)
+				last_direction = "down"
+				last_press = True
+				dtime = int((time.time() - last_timer) * 1000)
+				if dtime > 500:
+					print((dtime - 500) / 1000)
+				continue
+		elif max_id <= 15:
+			if max_row > LEFT_THRESHOLD:
+				# print(max_row)
+				last_direction = "left"
+				last_press = True
+				dtime = int((time.time() - last_timer) * 1000)
+				if dtime > 500:
+					print((dtime - 500) / 1000)
+				continue
+		else:
+			if max_row > UP_THRESHOLD:
+				# print(max_row)
+				last_direction = "up"
+				last_press = True
+				dtime = int((time.time() - last_timer) * 1000)
+				if dtime > 500:
+					print((dtime - 500) / 1000)
+				continue
+		last_timer = time.time()
+		if last_press:
+			last_press = False
+			if dtime < 500 and 100 < dtime:
+				print(last_direction)
+			elif dtime > 1500:
+				print("choose")
+		dtime = 0
 
 def prepare_config(args):
 	## load config and combine commandline arguments
@@ -68,6 +138,8 @@ def prepare_config(args):
 		config['client_mode']['raw'] = args.raw
 	if config['client_mode']['interactive'] is None or hasattr(args, 'interactive'+DEST_SUFFIX):
 		config['client_mode']['interactive'] = args.interactive
+	if config['client_mode']['output'] is None or hasattr(args, 'output'+DEST_SUFFIX):
+		config['client_mode']['output'] = args.output
 	check_config(config)
 
 	## some modifications
@@ -89,6 +161,9 @@ def main(args):
 		if config['client_mode']['interactive']:
 			print("Interactive mode")
 			run_client_interactive(my_client)
+		elif config['client_mode']['output']:
+			print("Output mode")
+			run_client_output(my_client)
 		else:
 			print("Plot mode")
 			if config['visual']['pyqtgraph']:

@@ -17,6 +17,8 @@ client_mode:
   raw: ~
   ## interactive command line mode
   interactive: ~
+  ## output command
+  output: true
 
 sensor:
   ## sensor shape: [16, 16], [8, 8], [6, 24]
