@@ -5,7 +5,8 @@ try:
 except ImportError:
 	pass
 import copy
-import time
+import argparse
+import time, sys
 
 from toolkit.uclient import CMD, Uclient
 from toolkit.process import Processor
@@ -14,6 +15,10 @@ from toolkit.tools import (
 	make_action, DEST_SUFFIX
 )
 
+IP = "localhost"
+PORT = 8081
+
+from socket import socket, AF_INET, SOCK_STREAM, timeout
 N = 16
 ZLIM = 3
 FPS = 194
@@ -43,7 +48,32 @@ def run_client_interactive(my_client):
 
 		my_client.interactive_cmd(my_cmd)
 
+class CursorClient:
+    def __init__(self, server_addr, port, timeout=1):
+        self.my_socket = socket(AF_INET, SOCK_STREAM)
+        self.my_socket.settimeout(timeout)
+        self.connect(server_addr, port)
+
+    def __exit__(self, type, value, traceback):
+        self.close()
+
+    def connect(self, address, port):
+        self.my_socket.connect((address, port))
+        print(f"client connecting to server: {address}")
+
+    def close(self):
+        self.my_socket.close()
+        print("remote client socket closed")
+
+    def send(self, touch_state, x, y):
+        paras = [touch_state, x, y]
+        self.my_socket.send(str(" ".join([str(item) for item in paras]) + "\n").encode())
+    
+    def sendButton(self, cmd):
+        self.my_socket.send((cmd+"\n").encode())
+
 def run_client_output(my_client):
+	my_remote_handle = CursorClient(IP, PORT)
 	last_press = False
 	last_direction = "right"
 	last_timer = 0
@@ -102,9 +132,10 @@ def run_client_output(my_client):
 		if last_press:
 			last_press = False
 			if dtime < 500 and 100 < dtime:
-				print(last_direction)
+				my_remote_handle.sendButton(last_direction)
 			elif dtime > 1500:
-				print("choose")
+				my_remote_handle.sendButton('click')
+				print("click")
 		dtime = 0
 
 def prepare_config(args):
