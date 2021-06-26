@@ -24,8 +24,8 @@ ZLIM = 3
 FPS = 194
 TH = 0.15
 UDP = False
-RIGHT_THRESHOLD = 6
-LEFT_THRESHOLD = 2
+RIGHT_THRESHOLD = 1.2
+LEFT_THRESHOLD = 1.8
 UP_THRESHOLD = 2
 DOWN_THRESHOLD = 2
 
@@ -78,6 +78,9 @@ def run_client_output(my_client):
 	last_direction = "right"
 	last_timer = 0
 	dtime = 0
+	peak = 1.5
+	last_send_time = 0
+	SEND_INTERVAL = 0.2
 	while True:
 		time.sleep(0.01)
 		my_client.send_cmd(1)
@@ -91,52 +94,72 @@ def run_client_output(my_client):
 				max_id = i
 		# print(max_row)
 		# print(max_id)
-		if max_id < 3 or max_id > 21:
-			if max_row > RIGHT_THRESHOLD:
+		if max_id < 5 or max_id > 22:
+			if max_row > peak / 3 and max_row > DOWN_THRESHOLD:
+				if max_row > peak:
+					peak = max_row
 				# print(max_row)
 				# print(max_id)
-				last_direction = "right"
-				last_press = True
-				dtime = int((time.time() - last_timer) * 1000)
-				if dtime > 500:
-					print((dtime - 500) / 1000)
-				continue
-		elif max_id <= 9:
-			if max_row > DOWN_THRESHOLD:
-				# print(max_row)
 				last_direction = "down"
 				last_press = True
 				dtime = int((time.time() - last_timer) * 1000)
 				if dtime > 500:
 					print((dtime - 500) / 1000)
 				continue
-		elif max_id <= 15:
-			if max_row > LEFT_THRESHOLD:
+		elif max_id <= 9:
+			if max_row > peak / 3 and max_row > RIGHT_THRESHOLD:
+				# print(peak)
+				if max_row > peak:
+					peak = max_row
 				# print(max_row)
-				last_direction = "left"
+				# print(max_id)
+				last_direction = "right"
 				last_press = True
 				dtime = int((time.time() - last_timer) * 1000)
-				if dtime > 500:
-					print((dtime - 500) / 1000)
+				# if dtime > 500:
+				# 	print((dtime - 500) / 1000)
 				continue
-		else:
-			if max_row > UP_THRESHOLD:
+		elif max_id <= 16:
+			if max_row > peak / 3 and max_row > UP_THRESHOLD:
+				if max_row > peak:
+					peak = max_row
 				# print(max_row)
+				# print(max_id)
 				last_direction = "up"
 				last_press = True
 				dtime = int((time.time() - last_timer) * 1000)
-				if dtime > 500:
-					print((dtime - 500) / 1000)
+				# if dtime > 500:
+				# 	print((dtime - 500) / 1000)
+				continue
+		else:
+			if max_row > peak / 3 and max_row > LEFT_THRESHOLD:
+				if max_row > peak:
+					peak = max_row
+				# print(max_row)
+				# print(max_id)
+				last_direction = "left"
+				last_press = True
+				dtime = int((time.time() - last_timer) * 1000)
+				# if dtime > 500:
+				# 	print((dtime - 500) / 1000)
 				continue
 		last_timer = time.time()
 		if last_press:
 			last_press = False
 			if dtime < 500 and 100 < dtime:
-				my_remote_handle.sendButton(last_direction)
-			elif dtime > 1500:
-				my_remote_handle.sendButton('click')
-				print("click")
+				if time.time() - last_send_time > SEND_INTERVAL:
+					print(last_direction)
+					# print(max_row)
+					my_remote_handle.sendButton(last_direction)
+					last_send_time = time.time()
+			elif dtime > 1000:
+				if time.time() - last_send_time > SEND_INTERVAL:
+					my_remote_handle.sendButton('click')
+					print("click")
+					last_send_time = time.time()
 		dtime = 0
+		if (max_row < 2):
+			peak = 1.5
 
 def prepare_config(args):
 	## load config and combine commandline arguments
