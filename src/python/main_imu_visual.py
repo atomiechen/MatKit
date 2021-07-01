@@ -16,7 +16,6 @@ from ahrs.filters import EKF
 from ahrs.common.orientation import acc2q
 
 from scipy.spatial.transform import Rotation as R
-import quaternion
 from pyquaternion import Quaternion
 
 from toolkit.visual.player1d import Player1D
@@ -24,6 +23,7 @@ from toolkit import filemanager
 
 from pca import pca_h, pca_v
 from scipy.optimize import leastsq
+from scipy.signal import savgol_filter
 
 
 BAUDRATE = 1000000
@@ -82,22 +82,24 @@ MAX_ACC = 2 * 9.8  ## m/s^2
 MAX_GYR = 2000  ## degree/s (dps)
 def quat_to_mat(q):
 	w, x, y, z = q
-	return np.matrix([[1-2*y*y-2*z*z, 2*x*y+2*w*z, 2*x*z-2*w*y], [2*x*y-2*w*z, 1-2*x*x-2*z*z, 2*y*z+2*w*x], [2*x*z+2*w*y, 2*y*z-2*w*x, 1-2*x*x-2*y*y]])	
+	return np.matrix([[1-2*y*y-2*z*z, 2*x*y+2*w*z, 2*x*z-2*w*y], [2*x*y-2*w*z, 1-2*x*x-2*z*z, 2*y*z+2*w*x], [2*x*z+2*w*y, 2*y*z-2*w*x, 1-2*x*x-2*y*y]]).T
 
 class Smooth:
-	def __init__(self):
-		self.N = 10
+	def __init__(self, N = 200, window_length = 25):
+		self.N = N
+		self.window_length = window_length
 		self.data = [0 for i in range(self.N)]
 	def update(self, d):
 		self.data.append(d)
 		if len(self.data) > self.N:
 			self.data = self.data[-self.N:]
 	def getData(self):
-		return np.sum(self.data)
+		y = savgol_filter(self.data, self.window_length, 5)
+		return y[-1]
 class ProcIMU:
 
 	RESOLUTION = 2**15
-	MAX_ACC = 2 * 9.8  ## m/s^2
+	MAX_ACC = 2 * 9.801  ## m/s^2
 	MAX_GYR = 2000  ## degree/s (dps)
 	UNIT_ACC = MAX_ACC / RESOLUTION
 	UNIT_GYR = MAX_GYR / RESOLUTION
@@ -107,50 +109,6 @@ class ProcIMU:
 
 	V0 = 255
 	R0_RECI = 1  ## a constant to multiply the value
-
-	def calibrate(self):
-		self.h_vec = np.zeros([9], dtype=np.float32)
-		self.v_vec = np.zeros([9], dtype=np.float32)
-		def fit_func(v1, A):
-			return np.array(np.dot(A, np.array(v1)))[0]
-
-		def residual_func(v1, A, y):
-			return (fit_func(np.array(v1), A) - y)**2 + 0.1 * np.mean(np.array(v1)**2)
-
-
-		M = 5			
-		datah = [[quat_to_mat((0.3986767 ,-0.5995983,0.69121914,-0.06127698)), quat_to_mat(( 0.49719739,-0.0639633 ,0.86514903,-0.01485314))],  [quat_to_mat((0.41771886,-0.50197834,0.73663552,0.17577491)), quat_to_mat((0.42981814,-0.13975846,0.88027534,-0.14435813))],[quat_to_mat((0.3986767 ,-0.5995983,0.69121914,-0.06127698)), quat_to_mat(( 0.49719739,-0.0639633 ,0.86514903,-0.01485314))],[quat_to_mat((0.3986767 ,-0.5995983,0.69121914,-0.06127698)), quat_to_mat(( 0.49719739,-0.0639633 ,0.86514903,-0.01485314))],[quat_to_mat((0.3986767 ,-0.5995983,0.69121914,-0.06127698)), quat_to_mat(( 0.49719739,-0.0639633 ,0.86514903,-0.01485314))]]
-		datah = np.reshape(np.array(datah), (M, 2, -1))
-		datav = [[quat_to_mat((0.61033867,-0.30779079,0.72248902,-0.10373595)),quat_to_mat(( 0.31355373,-0.35337103,0.85580681,-0.2107313))],   [quat_to_mat((0.59525167,-0.22015925,0.77228712,0.02789193)), quat_to_mat((0.32557408,-0.29069872,0.89971519,0.00288946))],[quat_to_mat((0.61033867,-0.30779079,0.72248902,-0.10373595)),quat_to_mat(( 0.31355373,-0.35337103,0.85580681,-0.2107313))],[quat_to_mat((0.61033867,-0.30779079,0.72248902,-0.10373595)),quat_to_mat(( 0.31355373,-0.35337103,0.85580681,-0.2107313))],[quat_to_mat((0.61033867,-0.30779079,0.72248902,-0.10373595)),quat_to_mat(( 0.31355373,-0.35337103,0.85580681,-0.2107313))]]# [[0,0,0], [1,1,1]]
-		datav = np.reshape(np.array(datav), (M,2,-1))
-		print(datah.shape)
-		
-		A = []
-		ys = []
-		for i in range(M):
-			A.append(datah[i][1] - datah[i][0])
-			ys.append(1)
-		for i in range(M):
-			A.append(datav[i][1] - datav[i][0])
-			ys.append(0)
-		A = np.matrix(np.stack(A, axis=0))
-		print('A', A.shape)
-		self.h_vec = np.array((A.I * A.T.I * A.T * np.matrix(ys).T).T)[0]
-		self.h_vec = leastsq(residual_func, self.v_vec, args=(A,ys))[0]
-
-		A = []
-		ys = []
-		for i in range(M):
-			A.append(datah[i][1] - datah[i][0])
-			ys.append(0)
-		for i in range(M):
-			A.append(datav[i][1] - datav[i][0])
-			ys.append(1)
-		A = np.matrix(np.stack(A, axis=0))
-		self.v_vec = np.array((A.I * A.T.I * A.T * np.matrix(ys).T).T)[0]
-		self.v_vec = leastsq(residual_func, self.v_vec, args=(A,ys))[0]
-
-
 
 	def __init__(self, measure, flag, port, baudrate, timeout=None, acc=False, gyr=False, my_cursor_client=None):
 		self.measure = measure
@@ -191,11 +149,173 @@ class ProcIMU:
 		#swnnnn
 		self.last_x = 0.5
 		self.last_y = 0.5
-		self.calibrate()
-		print(self.h_vec, self.v_vec)
+		# print(self.h_vec, self.v_vec)
 		self.smoothX = Smooth()
 		self.smoothY = Smooth()
 		self.inputting = False
+		self.std_Q = (0.48688449,-0.28526537,0.82494558,0.03212407)
+		self.rotQ = (quat_to_mat(self.std_Q)).I
+
+		self.calibrate = True
+		self.firstPass = True
+		self.gravityCheck = False
+		self.gravityData = []
+		self.running = False
+		self.G_ref = 9.85
+		self.G_threshold = 0.1
+
+
+	def checkGravity(self):
+		normAcc = np.linalg.norm(self.data_imu[:3])
+		print(f'norm:{normAcc}')
+		if abs(normAcc - self.G_ref) < self.G_threshold:
+			self.gravityData.append(self.data_imu[:3])
+			if len(self.gravityData) >= 100:
+				self.gravityCheck = True
+		else:
+			self.gravityData = []
+
+	def getQ0(self, gReal, gCur):
+		print('in get q0')
+		print(gReal, gCur)
+		angle = np.arccos(np.dot(gReal, gCur) / np.linalg.norm(gReal) / np.linalg.norm(gCur))
+		axis = np.cross(gReal, gCur)
+		axis = axis / np.linalg.norm(axis)
+		return (np.cos(angle / 2), axis[0]*np.sin(angle / 2), axis[1] * np.sin(angle / 2), axis[2] * np.sin(angle / 2))
+	def run(self):
+		## serial
+		self.my_serial = Serial(self.port, self.baudrate, timeout=self.timeout)
+		print(self.my_serial)
+
+		if not self.calibrate:
+			print(f'START CALIBRATE')
+			while self.flag.value != 0:
+				self.put_frame()
+				self.update_quaternion()
+				if not self.gravityCheck:
+					self.checkGravity()
+					print(f'\r[calibrate] Checking Gravity...\n', end='')
+				else:
+					if self.firstPass:
+						print(f'\n[calibrate] Gravity pass!')
+						self.firstPass = False
+						self.gravityVec = np.mean(self.gravityData, axis=0)
+						self.gravityData = []
+						print(f'[calibrate] Gravity vector: {self.gravityVec}')
+					else:
+						print(f'\rmove up', end='')
+						self.checkGravity()
+						if len(self.gravityData) >= 100:
+							self.upVec = np.mean(self.gravityData, axis=0)
+							print(f'\n[calibrate] Up Grivity vector:{self.upVec}')
+							self.xVec = np.cross(self.gravityVec, self.upVec)
+							self.yVec = -self.gravityVec
+							self.xVec = self.xVec / np.linalg.norm(self.xVec)
+							self.yVec = self.yVec / np.linalg.norm(self.yVec)
+							self.zVec = np.cross(self.xVec, self.yVec)
+							assert(abs(np.linalg.norm(self.zVec) - 1.0) < 0.01)
+							self.gravityData = []
+							print(f'[calibrate] M matrix calculated!')
+							print(f'[[{self.xVec[0]}, {self.xVec[1]}, {self.xVec[2]}], [{self.yVec[0]}, {self.yVec[1]}, {self.yVec[2]}],[{self.zVec[0]}, {self.zVec[1]}, {self.zVec[2]}]]')
+							self.gravityData = []
+		else: # self.calibrate == True
+			self.M = np.matrix([[0.18154237862382444, -0.9717136052726119, 0.15104646335385308], [0.8742922546696849, 0.22980217135375075, 0.4275558623919224],[-0.4501726537543158, 0.054439244752331986, 0.8912805116474796]]).T
+			print(f'[running] M: {self.M}')
+			while self.flag.value != 0:
+				self.put_frame()
+				normAcc = np.linalg.norm(self.data_imu[:3])
+				if not self.running and abs(normAcc - self.G_ref) < self.G_threshold:
+					print(f'[running] getting q0...')
+					self.Q0 = self.getQ0((self.M*np.matrix([0, -1, 0]).T).T.A[0], self.data_imu[:3])
+					self.madgwick = ahrs.filters.Madgwick(gain = 1)
+					# self.madgwick.Dt = self.cur_time - self.last_frame_time
+					# self.madgwick.frequency = 1 / self.madgwick.Dt
+					self.last_frame_time = self.cur_time
+					self.Q = self.madgwick.updateIMU(self.Q0, gyr=self.data_imu[3:], acc=self.data_imu[:3])
+					self.running = True
+				elif self.running:
+					self.Q = self.madgwick.updateIMU(self.Q, gyr=self.data_imu[3:], acc=self.data_imu[:3])
+					R = quat_to_mat(self.Q)
+					headRot = self.M.I * R * self.M
+					headPos = headRot * np.matrix([0, 0, -1]).T
+					pos = headPos.T.A[0]
+					assert(abs(np.linalg.norm(pos) - 1.0) < 0.01)
+					# x = np.degrees(np.arctan(pos[2] / pos[0]))
+					# y = np.degrees(np.arccos(pos[1]))
+					x = np.degrees(np.arctan2(-pos[2], pos[0]))
+					y = np.degrees(np.arcsin(pos[1]))
+
+					value = np.sum(self.data_pressure.reshape(16,-1)[:,2:4])
+					r32 = headRot.A[2][1]
+					r33 = headRot.A[2][2]
+					r31 = headRot.A[2][0]
+					r21 = headRot.A[1][0]
+					r11 = headRot.A[0][0]
+					ax = np.arctan2(r32, r33)
+					ay = np.arctan2(-r31, np.sqrt(r32*r32+r33*r33))
+					az = np.arctan2(r21, r11)
+					# print(f'[running] x: {ax}, y: {ay}, z:{az}')
+					# print(f'[running] pos: {pos[0]}, {pos[1]}, {pos[2]}')
+					#0:blue 1:orange 2: green
+					# self.measure[:3] = [ax, ay, 0]
+					# self.smoothX.update(ay)
+					# self.smoothY.update(ax)
+					# ay = self.smoothX.getData()
+					# ax = self.smoothY.getData()
+					self.measure[:3] = [x, y, 0]
+					print(f'[running] x: {x}, y: {y}, v: {value}')
+					# print(f'[running] x: {ay}, y: {ax}, v:{value}')
+					self.send_swn(x, y, value)
+	def send_swn(self, anglex, angley, value):
+
+		threshold = 10
+		x_top = 0.3
+		x_bot = 0.1
+		y_top = -2.3	
+		y_bot = -2.13
+
+		x = (anglex - x_bot) / (x_top - x_bot)
+		y = (y_top - angley) / (y_top - y_bot)
+		x = 0 if x < 0 else x
+		y = 0 if y < 0 else y
+		x = 1 if x > 1 else x
+		y = 1 if y > 1 else y
+		# x = anglex
+		# y = angley
+		# if not self.calibrating:
+		# 	print(f'calculated x:{x}, y:{y}')
+		# toSend = True
+		# if abs(x - self.last_x) > 0.1 or abs(y - self.last_y) > 0.1:
+		# 	toSend = False
+		# if toSend and abs(x - self.last_x) < 0.05 and abs(y - self.last_y)<0.05:
+		# 	toSend = False
+		# print(f'send? {toSend}')
+		self.last_x = x
+		self.last_y = y
+		# if not toSend:
+		# 	return
+		# self.measure[0:3] = [x, y, 0]
+		if value > threshold:
+			if self.touching:
+				pass
+				# self.my_cursor_client.send(2, self.last_x, self.last_y)
+			else:
+				# self.last_x = 0.5
+				# self.last_y = 0.5
+				# self.my_cursor_client.send(1,self.last_x, self.last_y)
+				self.touching = True
+		else:
+			if self.touching:
+				# self.my_cursor_client.send(3, self.last_x, self.last_y)
+				self.touching = False
+				self.inputting = not self.inputting
+				if not self.inputting:
+					self.my_cursor_client.send(3, x, y)
+				else:
+					self.my_cursor_client.send(1, x, y)
+			else:
+				self.my_cursor_client.send(2 if self.inputting else 4, x, y)
+
 
 
 		# self.my_remote_handle = CursorClient("localhost", 8081)
@@ -256,8 +376,15 @@ class ProcIMU:
 		 
 		# Return a 4 element array containing the final quaternion (q02,q12,q22,q32) 
 		return final_quaternion
+	
 
-	def run(self):
+
+	
+
+
+
+
+	def runn(self):
 		## serial
 		self.my_serial = Serial(self.port, self.baudrate, timeout=self.timeout)
 		print(self.my_serial)
@@ -265,93 +392,132 @@ class ProcIMU:
 		# self.cali()
 		# print(*self.rotation.inverse)
 		self.rotation = Quaternion(0.7506447624364577,-0.0,-0.12936740371211275,-0.6479170591082638)
+		self.gravityCheck = False
+		self.gLen = 0
+		self.firstPass = False
+		print(f'START CALIBRATE')
+		if self.calibrate:
+			while self.flag.value != 0:
+				self.put_frame()
+				accData = self.data_imu[:3]
+				gyrData = self.data_imu[3:]
+				if not self.gravityCheck:
+					self.checkGravity()
+					print(f'\r[calibrate] Checking Gravity...', end='')
+				else:
+					print(f'[calibrate] Gravity pass!')
+		else:
+		
 
-		print(f"recording to {self.filename}")
-		while self.flag.value != 0:
-			self.put_frame()
-			self.update_quaternion()
+			print(f"recording to {self.filename}")
+			while self.flag.value != 0:
+				self.put_frame()
+				self.update_quaternion()
 
-			self.visualize()
-
-
-
-			Quat_current = Quaternion(self.Q)
-			# rot_current = self.rotation.inverse*Quat_current
-			rot_current = self.rotation*Quat_current
-			x, y, z = (rot_current).rotate([0, 0, 1])
-			# u = (x+y)/2
-			# v = (x-y)/2
-
-			euler = self.euler_from_quaternion(*self.Q)
-			# x = (- pca_h.transform([euler])[0][0] - 20) / 70
-			# y = ((-pca_v.transform([euler])[0][0] - 20) / 20 + 2 ) / 3
-
-			# x = -pca_h.transform([self.Q])[0][0] 
-			# y = pca_v.transform([self.Q])[0][0]
-			print(f':{x}, y:{y}')
-			print('quad:', self.Q)
-			H = np.sum(np.dot(self.h_vec, np.reshape(quat_to_mat(self.Q), (9, -1))))
-			V = np.sum(np.dot(self.v_vec, np.reshape(quat_to_mat(self.Q), (9, -1))))
-			self.smoothX.update(H)
-			H = self.smoothX.getData()
-			self.smoothY.update(V)
-			V = self.smoothY.getData()
-			print(H.shape)
-			print('HHHH', H)
-			print('VVVV', V)
+				self.visualize()
 
 
-			# self.measure[0:3] = self.data_imu[3:] # self.Q[1:4]
-			# self.measure[1] = y
 
-			# v = (v)
-			# x /= 2
-			# self.measure[0] = y
-			# self.measure[1] = x
+				Quat_current = Quaternion(self.Q)
+				# rot_current = self.rotation.inverse*Quat_current
+				rot_current = self.rotation*Quat_current
+				x, y, z = (rot_current).rotate([0, 0, 1])
+				# u = (x+y)/2
+				# v = (x-y)/2
+				# if self.calibrating:
+				# 	print('calibrating Q:', self.Q)
 
-			value = np.sum(self.data_pressure.reshape(16,-1)[:,2:4])
-			# value = np.mean(self.data_pressure)
-			print(value)
+				euler = self.euler_from_quaternion(*self.Q)
+				# x = (- pca_h.transform([euler])[0][0] - 20) / 70
+				# y = ((-pca_v.transform([euler])[0][0] - 20) / 20 + 2 ) / 3
 
-			# self.send(H, V, value)
+				# x = -pca_h.transform([self.Q])[0][0] 
+				# y = pca_v.transform([self.Q])[0][0]
+				##############new try
+				self.curPos = self.rotQ * quat_to_mat(self.Q)
+				self.curVec = self.curPos * np.matrix([1, 0, 0]).T
+				# print(self.curVec)
+				Xangle = np.degrees(np.arctan(self.curVec[1][0] / self.curVec[0][0]))
+				Yangle = np.degrees(np.arccos(self.curVec[2][0]))
+				if not self.calibrating:
+					print(f'angles: {Xangle}, {Yangle}')
 
-####
-			maxv = np.argmax(np.abs(self.measure))
-			# print(self.measure[:])
-			# if np.abs(self.measure[1]) > 5:
-			self.measure[0:3] = self.data_imu[3:]
-			dy = -self.measure[1] * (self.cur_time - self.last_time)
-			# else:
-			# 	dy = 0
-			# if np.abs(self.measure[0]) + np.abs(self.measure[2]) > 10:
-			dx = (self.measure[0] + self.measure[2]) * (self.cur_time - self.last_time) / 2
-			# else:
-			# 	dx = 0
-####
-			# print(Quat_current)
-			
-			self.measure[0:3] = [euler[0], euler[1], euler[2]]
-			# self.measure[0:3] = self.Q[1:]
-			# print(value)
-			self.send(x, y, value, (dx/4 , dy /6))
-			# self.send_nine(dx, -dy, value)
-			# self.send_nine_swn(x, y, value, (dx / 350, dy / 550))
+				self.smoothX.update(Xangle.A[0][0])
+				Xangle = self.smoothX.getData()
+				self.smoothY.update(Yangle.A[0][0])
+				Yangle = self.smoothY.getData()
+				if not self.calibrating:
+					print(f'smooth angles: {Xangle}, {Yangle}')
 
-			# filemanager.write_line(self.filename, self.Q, tags=int(self.cur_time*1000000))
-			# filemanager.write_line(self.filename, euler, tags=int(self.cur_time*1000000))
+				#calculate alpha and phi
+				##############new try end
+				# print(f':{x}, y:{y}')
+				# print('quad:', self.Q)
+				H = np.sum(np.dot(self.h_vec, np.reshape(quat_to_mat(self.Q), (9, -1))))
+				V = np.sum(np.dot(self.v_vec, np.reshape(quat_to_mat(self.Q), (9, -1))))
+				
+				# print(H.shape)
+				# print('HHHH', H)
+				# print('VVVV', V)
 
-			if self.cur_time - self.last_time >= 1:
-				duration = self.cur_time - self.last_time
-				frames = self.frame_idx - self.last_frame_idx
-				print(f"  frame rate: {frames/duration:.3f} fps")
-				self.last_time = self.cur_time
-				self.last_frame_idx = self.frame_idx
+
+				# self.measure[0:3] = self.data_imu[3:] # self.Q[1:4]
+				# self.measure[1] = y
+
+				# v = (v)
+				# x /= 2
+				# self.measure[0] = y
+				# self.measure[1] = x
+
+				value = np.sum(self.data_pressure.reshape(16,-1)[:,2:4])
+				# value = np.mean(self.data_pressure)
+				if not self.calibrating:
+					print(f'value:{value}')
+				print('self.measure:', self.measure[:])
+				self.measure[:] = [self.last_x, self.last_y, 0]
+				self.send_swn(Xangle, Yangle, value)
+				# self.send(H, V, value)
+
+	####
+				maxv = np.argmax(np.abs(self.measure))
+				# print(self.measure[:])
+				# if np.abs(self.measure[1]) > 5:
+				# self.measure[0:3] = self.data_imu[3:]
+				dy = -self.measure[1] * (self.cur_time - self.last_time)
+				# else:
+				# 	dy = 0
+				# if np.abs(self.measure[0]) + np.abs(self.measure[2]) > 10:
+				dx = (self.measure[0] + self.measure[2]) * (self.cur_time - self.last_time) / 2
+				# else:
+				# 	dx = 0
+	####
+				# print(Quat_current)
+				
+				
+
+				# self.measure[0:3] = self.Q[1:]
+				# print(value)
+				# self.send(x, y, value, (dx/4 , dy /6))
+				# self.send_nine(dx, -dy, value)
+				# self.send_nine_swn(x, y, value, (dx / 350, dy / 550))
+
+				# filemanager.write_line(self.filename, self.Q, tags=int(self.cur_time*1000000))
+				# filemanager.write_line(self.filename, euler, tags=int(self.cur_time*1000000))
+
+				if self.cur_time - self.last_time >= 1:
+					duration = self.cur_time - self.last_time
+					frames = self.frame_idx - self.last_frame_idx
+					print(f"  frame rate: {frames/duration:.3f} fps")
+					self.last_time = self.cur_time
+					self.last_frame_idx = self.frame_idx
 
 		self.my_serial.close()
+	
+
 	def send_nine_swn(self, x, y, value, delta):
 		threshold = 1.2
 		dx, dy = delta
-		print(f'delata:{delta}')
+		# print(f'delata:{delta}')
 		self.last_x += dx
 		self.last_y += dy
 
@@ -395,7 +561,7 @@ class ProcIMU:
 
 
 	def send(self, x, y, value):
-		print('in send', x, y)
+		# print('in send', x, y)
 		threshold = 1.5
 		if x < 0 or y < 0:
 			return
@@ -415,7 +581,7 @@ class ProcIMU:
 	def send(self, x, y, value, delta):
 		threshold = 40
 		dx, dy = delta
-		print(f'delata:{delta}')
+		# print(f'delata:{delta}')
 		# self.last_x += dx
 		# self.last_y += dy
 		# x = self.last_x - 0.5
@@ -545,7 +711,7 @@ class ProcIMU:
 			v3 = self.euler_from_quaternion(*self.Q)
 
 			# self.measure[:3] = v3
-			self.measure[1] = v3[1]
+			# self.measure[1] = v3[1]
 
 	def update_quaternion(self):
 		self.madgwick.Dt = self.cur_time - self.last_frame_time
