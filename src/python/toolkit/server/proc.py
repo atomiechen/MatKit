@@ -187,7 +187,26 @@ class DataSetterFile:
 		return frame_idx, int(datetime.timestamp(data_time)*1000000)
 
 
-class Proc:
+class DataHandler:
+
+	def __init__(*args, **kwargs):
+		pass
+
+	def prepare(*args, **kwargs):
+		pass
+
+	def prepare_loop(*args, **kwargs):
+		pass
+
+	def handle(*args, **kwargs):
+		pass
+
+	def final(*args, **kwargs):
+		pass
+
+
+class DataHandlerPressure(DataHandler):
+
 	## data mode
 	my_raw = False
 
@@ -208,67 +227,23 @@ class Proc:
 	my_INIT_CALI_FRAMES = 200
 	my_WIN_SIZE = 0
 
-	## fps checking
-	FPS_CHECK_TIME = 1  # seconds of interval to check fps
+	mask = None
 
-	## for warming up, make CPU schedule more time for serial reading
-	WARM_UP = 1  # seconds
-
-	## filename received from server
-	FILENAME_TEMPLATE = "record_%Y%m%d%H%M%S.csv"
-	FILENAME_TEMPLATE_RAW = "record_%Y%m%d%H%M%S_raw.csv"
-
-
-	def __init__(self, n, data_setter, data_out, data_raw, idx_out, **kwargs):
-		## sensor info
-		self.n = check_shape(n)
+	def __init__(self, **kwargs):
 		self.mask = None
-
-		## default data source
-		self.data_setter = data_setter
-
-		self.total = self.n[0] * self.n[1]
-		self.cols = self.n[1]//2 + 1
-
-		## recording
-		self.record_raw = False
-		self.filename = None
-		self.filename_id = 0
-		self.tags = None
-		## copy tags from data setter to output file,
-		## if False, generate tags using current frame index and timestamp
-		self.copy_tags = False
-
-		## for multiprocessing communication
-		self.pipe_conn = None
-
-		self.imu = False
 		self.config(**kwargs)
 
-		## intermediate data
-		self.data_tmp = np.zeros(self.total, dtype=float)
-		self.data_imu = np.zeros(6, dtype=float)
-		self.data_reshape = self.data_tmp.reshape(self.n[0], self.n[1])
-		## output data
-		# self.data_out = Array('d', self.total)  # d for double
-		## raw data
-		# self.data_raw = np.zeros(self.total, dtype=float)
-		self.data_out = data_out
-		self.data_raw = data_raw
-		self.idx_out = idx_out
-
-
-	def config(self, *, raw=None, warm_up=None,
-		V0=None, R0_RECI=None, convert=None, mask=None, 
-		filter_spatial=None, filter_spatial_cutoff=None, butterworth_order=None,
-		filter_temporal=None, filter_temporal_size=None, rw_cutoff=None,
-		cali_frames=None, cali_win_size=None, pipe_conn=None,
-		output_filename=None, copy_tags=None,
-		imu=None):
+	def config(self, *, n, raw=None, V0=None, R0_RECI=None, convert=None, 
+		mask=None, filter_spatial=None, filter_spatial_cutoff=None, 
+		butterworth_order=None, filter_temporal=None, 
+		filter_temporal_size=None, rw_cutoff=None, cali_frames=None, 
+		cali_win_size=None, **kwargs):
+		if n is not None:
+			self.n = check_shape(n)
+			self.total = self.n[0] * self.n[1]
+			self.cols = self.n[1]//2 + 1
 		if raw is not None:
 			self.my_raw = raw
-		if warm_up is not None:
-			self.WARM_UP = warm_up
 		if V0:
 			self.V0 = V0
 		if R0_RECI:
@@ -299,21 +274,6 @@ class Proc:
 			self.my_INIT_CALI_FRAMES = cali_frames
 		if cali_win_size is not None:
 			self.my_WIN_SIZE = cali_win_size
-		if pipe_conn is not None:
-			self.pipe_conn = pipe_conn
-		if output_filename is not None:
-			self.filename = output_filename
-		if copy_tags is not None:
-			self.copy_tags = copy_tags
-		if imu is not None:
-			self.imu = imu
-
-	def reset(self):
-		## for output
-		self.idx_out.value = 0
-		## for fps checking
-		self.last_frame_idx = 0
-		self.last_time = self.start_time
 
 	@staticmethod
 	def calReciprocalResistance(voltage, v0, r0_reci):
@@ -327,36 +287,143 @@ class Proc:
 		np_array /= (v0 - np_array)
 		np_array *= r0_reci
 
-	def get_raw_frame(self):
-		self.tags = self.data_setter(self.data_tmp, self.data_imu)
+	@staticmethod
+	def getNextIndex(idx, size):
+		return (idx+1) if idx != (size-1) else 0
+
+	def handle_raw_frame(self, data):
+		self.data_tmp = data
+		self.data_reshape = self.data_tmp.reshape(self.n[0], self.n[1])
 		if self.mask is not None:
 			self.data_reshape *= self.mask
 		if self.my_convert:
 			# for i in range(self.total):
 			# 	self.data_tmp[i] = self.calReciprocalResistance(self.data_tmp[i], self.V0, self.R0_RECI)
 			self.calReci_numpy_array(self.data_tmp, self.V0, self.R0_RECI)
-		self.idx_out.value += 1
 
-	def post_action(self):
-		if self.cur_time - self.last_time >= self.FPS_CHECK_TIME:
-			duration = self.cur_time - self.last_time
-			run_duration = self.cur_time - self.start_time
-			frames = self.idx_out.value - self.last_frame_idx
-			print(f"  frame rate: {frames/duration:.3f} fps  running time: {run_duration:.3f} s")
-			if self.imu:
-				print(f"  {self.data_imu}")
-			self.last_frame_idx = self.idx_out.value
-			self.last_time = self.cur_time
-		if self.filename:
-			if self.record_raw:
-				data_ptr = self.data_raw
-			else:
-				data_ptr = self.data_out
-			if not self.copy_tags:
-				timestamp = int(self.cur_time*1000000)
-				self.tags = [self.idx_out.value, timestamp]
-			write_line(self.filename, data_ptr, tags=self.tags)
+	def prepare(self):
+		if not self.my_raw:
+			self.prepare_spatial()
+			self.prepare_temporal()
+			self.prepare_cali()
+		self.print_proc()
 
+	def prepare_loop(self, data):
+		self.handle_raw_frame(data)
+
+		if self.need_cache > 0:
+			self.filter()
+			self.need_cache -= 1
+			return True
+		if self.frame_cnt < self.my_INIT_CALI_FRAMES:
+			## accumulate data
+			self.filter()
+			self.data_zero += self.data_tmp
+			self.frame_cnt += 1
+			return True
+		else:
+			## get average
+			self.data_zero /= self.frame_cnt
+			## calculate data_win
+			self.data_win[:] = self.data_zero
+			return False
+
+	def handle(self, data):
+		self.handle_raw_frame(data)
+		if not self.my_raw:
+			self.filter()
+			self.calibrate()
+
+	def prepare_cali(self):
+		if self.my_INIT_CALI_FRAMES <= 0:
+			return
+
+		print("Initiating calibration...");
+		self.data_zero = np.zeros(self.total, dtype=float)
+		self.data_win = np.zeros((self.my_WIN_SIZE, self.total), dtype=float)
+		self.win_frame_idx = 0
+		## for preparing calibration
+		self.frame_cnt = 0
+		# ## accumulate data
+		# while frame_cnt < self.my_INIT_CALI_FRAMES:
+		# 	self.get_raw_frame()
+		# 	self.filter()
+		# 	self.data_zero += self.data_tmp
+		# 	frame_cnt += 1
+		# ## get average
+		# self.data_zero /= frame_cnt
+		# ## calculate data_win
+		# self.data_win[:] = self.data_zero
+
+	def calibrate(self):
+		if self.my_INIT_CALI_FRAMES <= 0:
+			return
+		stored = self.data_tmp.copy()
+		## calibrate
+		self.data_tmp -= self.data_zero
+		## the value should be positive
+		self.data_tmp[self.data_tmp < 0] = 0
+		## adjust window if using dynamic window
+		if self.my_WIN_SIZE > 0:
+			## update data_zero (zero position) and data_win (history data)
+			self.data_zero += (stored - self.data_win[self.win_frame_idx]) / self.my_WIN_SIZE
+			self.data_win[self.win_frame_idx] = stored
+			## update frame index
+			self.win_frame_idx = self.getNextIndex(self.win_frame_idx, self.my_WIN_SIZE)
+
+	def filter(self):
+		self.spatial_filter()
+		self.temporal_filter()
+
+	def prepare_temporal(self):
+		if self.my_filter_temporal == FILTER_TEMPORAL.NONE:
+			return
+
+		print("Initiating temporal filter...");
+		self.data_filter = np.zeros((self.my_LP_SIZE-1, self.total), dtype=float)
+		self.kernel_lp = np.zeros(self.my_LP_SIZE, dtype=float)
+		self.filter_frame_idx = 0
+		self.need_cache = self.my_LP_SIZE - 1
+
+		if self.my_filter_temporal == FILTER_TEMPORAL.MA:
+			## moving average
+			self.kernel_lp[:] = 1 / self.my_LP_SIZE
+		elif self.my_filter_temporal == FILTER_TEMPORAL.RW:
+			## FIR Rectangular window filter (sinc low pass)
+			sum_all = 0
+			for t in range(self.my_LP_SIZE):
+				shifted = t - (self.my_LP_SIZE-1) / 2
+				if shifted == 0:
+					## limit: t -> 0, sin(t)/t -> 1
+					self.kernel_lp[t] = 2 * pi * self.my_LP_W
+				else:
+					self.kernel_lp[t] = sin(2 * pi * self.my_LP_W * shifted) / shifted
+				sum_all += self.kernel_lp[t]
+			self.kernel_lp /= sum_all
+		else:
+			raise Exception("Unknown temporal filter!")
+
+		if self.need_cache > 0:
+			print(f"Cache {self.need_cache} frames for filter.")
+			# while self.need_cache > 0:
+			# 	self.get_raw_frame()
+			# 	self.filter()
+			# 	self.need_cache -= 1
+
+	def temporal_filter(self):
+		if self.my_filter_temporal == FILTER_TEMPORAL.NONE:
+			return
+
+		stored = self.data_tmp.copy()
+		## convolve
+		self.data_tmp *= self.kernel_lp[0]
+		## oldest point in data_filter is firstly visited
+		for t in range(1, self.my_LP_SIZE):
+			self.data_tmp += self.data_filter[self.filter_frame_idx] * self.kernel_lp[t]
+			self.filter_frame_idx = self.getNextIndex(self.filter_frame_idx, self.my_LP_SIZE-1)
+		self.data_filter[self.filter_frame_idx] = stored
+		## update to next index
+		self.filter_frame_idx = self.getNextIndex(self.filter_frame_idx, self.my_LP_SIZE-1)
 
 	def prepare_spatial(self):
 		def gaussianLP(distance):
@@ -403,100 +470,6 @@ class Proc:
 		## must specify shape when the final axis number is odd
 		self.data_reshape[:] = np.fft.irfft2(freq, self.data_reshape.shape)
 
-	@staticmethod
-	def getNextIndex(idx, size):
-		return (idx+1) if idx != (size-1) else 0
-
-	def prepare_temporal(self):
-		if self.my_filter_temporal == FILTER_TEMPORAL.NONE:
-			return
-
-		print("Initiating temporal filter...");
-		self.data_filter = np.zeros((self.my_LP_SIZE-1, self.total), dtype=float)
-		self.kernel_lp = np.zeros(self.my_LP_SIZE, dtype=float)
-		self.filter_frame_idx = 0
-		need_cache = self.my_LP_SIZE - 1
-
-		if self.my_filter_temporal == FILTER_TEMPORAL.MA:
-			## moving average
-			self.kernel_lp[:] = 1 / self.my_LP_SIZE
-		elif self.my_filter_temporal == FILTER_TEMPORAL.RW:
-			## FIR Rectangular window filter (sinc low pass)
-			sum_all = 0
-			for t in range(self.my_LP_SIZE):
-				shifted = t - (self.my_LP_SIZE-1) / 2
-				if shifted == 0:
-					## limit: t -> 0, sin(t)/t -> 1
-					self.kernel_lp[t] = 2 * pi * self.my_LP_W
-				else:
-					self.kernel_lp[t] = sin(2 * pi * self.my_LP_W * shifted) / shifted
-				sum_all += self.kernel_lp[t]
-			self.kernel_lp /= sum_all
-		else:
-			raise Exception("Unknown temporal filter!")
-
-		if need_cache > 0:
-			print(f"Cache {need_cache} frames for filter.")
-			while need_cache > 0:
-				self.get_raw_frame()
-				self.filter()
-				need_cache -= 1
-
-	def temporal_filter(self):
-		if self.my_filter_temporal == FILTER_TEMPORAL.NONE:
-			return
-
-		stored = self.data_tmp.copy()
-		## convolve
-		self.data_tmp *= self.kernel_lp[0]
-		## oldest point in data_filter is firstly visited
-		for t in range(1, self.my_LP_SIZE):
-			self.data_tmp += self.data_filter[self.filter_frame_idx] * self.kernel_lp[t]
-			self.filter_frame_idx = self.getNextIndex(self.filter_frame_idx, self.my_LP_SIZE-1)
-		self.data_filter[self.filter_frame_idx] = stored
-		## update to next index
-		self.filter_frame_idx = self.getNextIndex(self.filter_frame_idx, self.my_LP_SIZE-1)
-
-	def filter(self):
-		self.spatial_filter()
-		self.temporal_filter()
-
-	def prepare_cali(self):
-		if self.my_INIT_CALI_FRAMES <= 0:
-			return
-
-		print("Initiating calibration...");
-		self.data_zero = np.zeros(self.total, dtype=float)
-		self.data_win = np.zeros((self.my_WIN_SIZE, self.total), dtype=float)
-		self.win_frame_idx = 0
-		frame_cnt = 0
-		## accumulate data
-		while frame_cnt < self.my_INIT_CALI_FRAMES:
-			self.get_raw_frame()
-			self.filter()
-			self.data_zero += self.data_tmp
-			frame_cnt += 1
-		## get average
-		self.data_zero /= frame_cnt
-		## calculate data_win
-		self.data_win[:] = self.data_zero
-
-	def calibrate(self):
-		if self.my_INIT_CALI_FRAMES <= 0:
-			return
-		stored = self.data_tmp.copy()
-		## calibrate
-		self.data_tmp -= self.data_zero
-		## the value should be positive
-		self.data_tmp[self.data_tmp < 0] = 0
-		## adjust window if using dynamic window
-		if self.my_WIN_SIZE > 0:
-			## update data_zero (zero position) and data_win (history data)
-			self.data_zero += (stored - self.data_win[self.win_frame_idx]) / self.my_WIN_SIZE
-			self.data_win[self.win_frame_idx] = stored
-			## update frame index
-			self.win_frame_idx = self.getNextIndex(self.win_frame_idx, self.my_WIN_SIZE)
-
 	def print_proc(self):
 		print(f"Voltage-resistance conversion: {self.my_convert}")
 		print(f"Data mode: {'raw' if self.my_raw else 'processed'}")
@@ -531,6 +504,104 @@ class Proc:
 				else:
 					print("    Dynamic calibration")
 					print(f"    Calibration window size: {self.my_WIN_SIZE}")
+
+
+class DataHandlerIMU(DataHandler):
+	pass
+
+
+class Proc:
+
+	## fps checking
+	FPS_CHECK_TIME = 1  # seconds of interval to check fps
+
+	## for warming up, make CPU schedule more time for serial reading
+	WARM_UP = 1  # seconds
+
+	## filename received from server
+	FILENAME_TEMPLATE = "record_%Y%m%d%H%M%S.csv"
+	FILENAME_TEMPLATE_RAW = "record_%Y%m%d%H%M%S_raw.csv"
+
+
+	def __init__(self, n, data_setter, data_out, data_raw, idx_out, **kwargs):
+		## sensor info
+		self.n = check_shape(n)
+		self.total = self.n[0] * self.n[1]
+
+		## default data source
+		self.data_setter = data_setter
+
+		## recording
+		self.record_raw = False
+		self.filename = None
+		self.filename_id = 0
+		self.tags = None
+		## copy tags from data setter to output file,
+		## if False, generate tags using current frame index and timestamp
+		self.copy_tags = False
+
+		## for multiprocessing communication
+		self.pipe_conn = None
+
+		self.imu = False
+
+		kwargs['n'] = self.n
+		self.handler_pressure = DataHandlerPressure(**kwargs)
+		self.handler_imu = DataHandlerIMU(**kwargs)
+
+		## intermediate data
+		self.data_tmp = np.zeros(self.total, dtype=float)
+		self.data_imu = np.zeros(6, dtype=float)
+
+		## shared data
+		self.data_out = data_out
+		self.data_raw = data_raw
+		self.idx_out = idx_out
+
+
+	def config(self, *, warm_up=None, pipe_conn=None,
+		output_filename=None, copy_tags=None, imu=None, **kwargs):
+		if warm_up is not None:
+			self.WARM_UP = warm_up
+		if pipe_conn is not None:
+			self.pipe_conn = pipe_conn
+		if output_filename is not None:
+			self.filename = output_filename
+		if copy_tags is not None:
+			self.copy_tags = copy_tags
+		if imu is not None:
+			self.imu = imu
+
+	def reset(self):
+		## for output
+		self.idx_out.value = 0
+		## for fps checking
+		self.last_frame_idx = 0
+		self.last_time = self.start_time
+
+	def get_raw_frame(self):
+		self.tags = self.data_setter(self.data_tmp, self.data_imu)
+		self.idx_out.value += 1
+
+	def post_action(self):
+		if self.cur_time - self.last_time >= self.FPS_CHECK_TIME:
+			duration = self.cur_time - self.last_time
+			run_duration = self.cur_time - self.start_time
+			frames = self.idx_out.value - self.last_frame_idx
+			print(f"  frame rate: {frames/duration:.3f} fps  running time: {run_duration:.3f} s")
+			if self.imu:
+				print(f"  {self.data_imu}")
+			self.last_frame_idx = self.idx_out.value
+			self.last_time = self.cur_time
+		if self.filename:
+			if self.record_raw:
+				data_ptr = self.data_raw
+			else:
+				data_ptr = self.data_out
+			if not self.copy_tags:
+				timestamp = int(self.cur_time*1000000)
+				self.tags = [self.idx_out.value, timestamp]
+			write_line(self.filename, data_ptr, tags=self.tags)
 
 	def loop_proc(self):
 		print("Running processing...")
@@ -595,7 +666,7 @@ class Proc:
 			except SerialTimeout:
 				pass
 
-	def run(self):
+	def run_org(self):
 		if self.WARM_UP > 0:
 			self.warm_up()
 
@@ -608,6 +679,79 @@ class Proc:
 			self.prepare_temporal()
 			self.prepare_cali()
 		self.loop_proc()
+
+	def run(self):
+		if self.WARM_UP > 0:
+			self.warm_up()
+
+		self.start_time = time.time()
+		self.reset()
+
+		self.handler_pressure.prepare()
+		self.handler_imu.prepare()
+
+		ret = True
+		while ret:
+			self.get_raw_frame()
+			ret = self.handler_pressure.prepare_loop(self.data_tmp)
+		ret = True
+		while ret:
+			self.get_raw_frame()
+			ret = self.handler_imu.prepare_loop(self.data_imu)
+
+		print("Running processing...")
+		while True:
+			## check signals from the other process
+			if self.pipe_conn is not None:
+				if self.pipe_conn.poll():
+					msg = self.pipe_conn.recv()
+					# print(f"msg={msg}")
+					flag = msg[0]
+					if flag == FLAG.FLAG_STOP:
+						break
+					if flag in (FLAG.FLAG_REC_DATA, FLAG.FLAG_REC_RAW):
+						self.record_raw = True if flag == FLAG.FLAG_REC_RAW else True
+						filename = msg[1]
+						if filename == "":
+							if flag == FLAG.FLAG_REC_RAW:
+								filename = datetime.now().strftime(self.FILENAME_TEMPLATE_RAW)
+							else:
+								filename = datetime.now().strftime(self.FILENAME_TEMPLATE)
+						try:
+							with open(filename, 'a') as fout:
+								pass
+							if self.filename is not None:
+								print(f"stop recording:   {self.filename}")
+							self.filename = filename
+							print(f"recording to:     {self.filename}")
+							self.pipe_conn.send((FLAG.FLAG_REC_RET_SUCCESS,self.filename))
+						except:
+							print(f"failed to record: {self.filename}")
+							self.pipe_conn.send((FLAG.FLAG_REC_RET_FAIL,))
+
+					elif flag == FLAG.FLAG_REC_STOP:
+						if self.filename is not None:
+							print(f"stop recording:   {self.filename}")
+						self.filename = None
+						self.filename_id = 0
+					elif flag == FLAG.FLAG_REC_BREAK:
+						self.filename_id += 1
+
+			try:
+				self.get_raw_frame()
+			except SerialTimeout:
+				continue
+			except FileEnd:
+				print(f"Processing time: {time.time()-self.start_time:.3f} s")
+				break
+			self.cur_time = time.time()
+			self.data_raw[:] = self.data_tmp
+
+			self.handler_pressure.handle(self.data_tmp)
+			self.handler_imu.handle(self.data_imu)
+
+			self.data_out[:] = self.data_tmp
+			self.post_action()
 
 
 if __name__ == '__main__':
