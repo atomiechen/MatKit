@@ -80,8 +80,17 @@ class CursorClient:
 		self.my_socket.send((cmd+"\n").encode())
 
 
-MAX_ACC = 2 * 9.8  ## m/s^2
+RESOLUTION = 2**15
+MAX_ACC = 2 * 9.801  ## m/s^2
 MAX_GYR = 2000  ## degree/s (dps)
+UNIT_ACC = MAX_ACC / RESOLUTION
+UNIT_GYR = MAX_GYR / RESOLUTION
+UNIT_GYR_RAD = UNIT_GYR * np.pi / 180
+
+
+# MAX_ACC = 2 * 9.8  ## m/s^2
+# MAX_GYR = 2000  ## degree/s (dps)
+
 def quat_to_mat(q):
 	w, x, y, z = q
 	return np.array([[1-2*y*y-2*z*z, 2*x*y+2*w*z, 2*x*z-2*w*y], [2*x*y-2*w*z, 1-2*x*x-2*z*z, 2*y*z+2*w*x], [2*x*z+2*w*y, 2*y*z-2*w*x, 1-2*x*x-2*y*y]]).T
@@ -129,12 +138,12 @@ class AverageSmooth(Smooth):
 
 class ProcIMU:
 
-	RESOLUTION = 2**15
-	MAX_ACC = 2 * 9.801  ## m/s^2
-	MAX_GYR = 2000  ## degree/s (dps)
-	UNIT_ACC = MAX_ACC / RESOLUTION
-	UNIT_GYR = MAX_GYR / RESOLUTION
-	UNIT_GYR_RAD = UNIT_GYR * np.pi / 180
+	# RESOLUTION = 2**15
+	# MAX_ACC = 2 * 9.801  ## m/s^2
+	# MAX_GYR = 2000  ## degree/s (dps)
+	# UNIT_ACC = MAX_ACC / RESOLUTION
+	# UNIT_GYR = MAX_GYR / RESOLUTION
+	# UNIT_GYR_RAD = UNIT_GYR * np.pi / 180
 
 	FILENAME_TEMPLATE = "imu_%Y%m%d%H%M%S.csv"
 
@@ -156,6 +165,7 @@ class ProcIMU:
 
 		## AHRS
 		self.madgwick = ahrs.filters.Madgwick(gain=1)# 0.03)
+		self.ekf = EKF()
 		self.ekf = EKF()
 		self.Q = np.array([1., 0., 0., 0.]) # Allocate for quaternions
 
@@ -196,8 +206,8 @@ class ProcIMU:
 		self.gravityCheck = False
 		self.gravityData = []
 		self.running = False
-		self.G_ref = 10.0
-		self.G_threshold = 0.2
+		self.G_ref = 9.801
+		self.G_threshold = 0.1
 		if not self.needCalibrate:
 			self.loadM()
 	def loadM(self):
@@ -300,14 +310,18 @@ class ProcIMU:
 				if not self.running and abs(normAcc - self.G_ref) < self.G_threshold:
 					print(f'[running] getting q0...')
 					self.Q0 = self.getQ0(self.M.dot(np.array([0, -1, 0])), self.data_imu[:3])
+					# self.Q0 = ahrs.common.orientation.acc2q(self.data_imu[:3])
 					self.madgwick = ahrs.filters.Madgwick(gain = 1)
+					self.ekf = EKF()
 					# self.madgwick.Dt = self.cur_time - self.last_frame_time
 					# self.madgwick.frequency = 1 / self.madgwick.Dt
 					self.last_frame_time = self.cur_time
 					self.Q = self.madgwick.updateIMU(self.Q0, gyr=self.data_imu[3:], acc=self.data_imu[:3])
+					# self.Q = self.ekf.update(self.Q0, gyr=self.data_imu[3:], acc=self.data_imu[:3])
 					self.running = True
 				elif self.running:
 					self.Q = self.madgwick.updateIMU(self.Q, gyr=self.data_imu[3:], acc=self.data_imu[:3])
+					# self.Q = self.ekf.update(self.Q, gyr=self.data_imu[3:], acc=self.data_imu[:3])
 					R = quat_to_mat(self.Q)
 					# headRot = self.M.I * R * self.M
 					headRot = linalg.inv(self.M).dot(R).dot(self.M)
@@ -751,14 +765,11 @@ class ProcIMU:
 						begin = False
 					else:
 						self.data_pressure[:256] = frame[:256]
-						self.calReci_numpy_array(self.data_pressure, self.V0, self.R0_RECI)
 						if self.data_imu is not None:
 							pos = 256
 							for i in range(6):
 								self.data_imu[i] = unpack_from(f"=h", frame, pos)[0]
 								pos += calcsize(f"=h")
-						self.data_imu[:3] *= self.UNIT_ACC
-						self.data_imu[3:] *= self.UNIT_GYR_RAD
 						self.cur_time = time.time()
 						self.frame_idx += 1
 						break
@@ -767,6 +778,18 @@ class ProcIMU:
 			elif recv == 0x5B:
 				## begin a frame
 				begin = True
+
+		self.calReci_numpy_array(self.data_pressure, self.V0, self.R0_RECI)
+		self.data_imu[:3] *= UNIT_ACC
+		self.data_imu[3:] *= UNIT_GYR_RAD
+
+		self.data_imu[0] -= -0.085487926459334
+		self.data_imu[1] -= -0.038224993082962
+		self.data_imu[2] -= 0.556024530070166
+
+		self.data_imu[0] /= (9.870533168553060 / 9.801)
+		self.data_imu[1] /= (9.832376613350656 / 9.801)
+		self.data_imu[2] /= (9.743367778916230 / 9.801)
 
 	def visualize(self):
 		## visualize data
