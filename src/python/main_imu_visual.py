@@ -141,15 +141,18 @@ class ProcIMU:
 	V0 = 255
 	R0_RECI = 1  ## a constant to multiply the value
 
-	def __init__(self, measure, flag, port, baudrate, timeout=None, acc=False, gyr=False, needCalibrate=False, my_cursor_client=None):
-		self.measure = measure
-		self.flag = flag
-		self.port = port
-		self.baudrate = baudrate
-		self.timeout = timeout
-		self.acc = acc
-		self.gyr = gyr
-		self.my_cursor_client = my_cursor_client
+	# def __init__(self, measure, flag, port, baudrate, timeout=None, acc=False, gyr=False, needCalibrate=False, my_cursor_client=None):
+	def __init__(self, kwargs):
+		print(kwargs)
+		self.measure = kwargs['measure']
+		self.flag = kwargs['flag']
+		self.port = kwargs['port']
+		self.baudrate = kwargs['baudrate']
+		self.timeout = kwargs['timeout']
+		self.acc = kwargs['acc']
+		self.gyr = kwargs['gyr']
+		self.my_cursor_client = kwargs['client']
+		self.kwargs = kwargs
 
 		## AHRS
 		self.madgwick = ahrs.filters.Madgwick(gain=1)# 0.03)
@@ -187,7 +190,7 @@ class ProcIMU:
 		# self.std_Q = (0.48688449,-0.28526537,0.82494558,0.03212407)
 		# self.rotQ = (quat_to_mat(self.std_Q)).I
 
-		self.needCalibrate = needCalibrate
+		self.needCalibrate = kwargs['calibrate']
 		self.M = np.array([[0.18883633390998655, -0.9758716640520846, 0.10961448031921497], [0.9179313065437382, 0.21507203171789888, 0.3333858689861354],[-0.34891683172690546, 0.03766319785879299, 0.9363965655985224]]).T
 		self.firstPass = True
 		self.gravityCheck = False
@@ -222,6 +225,12 @@ class ProcIMU:
 				self.gravityCheck = True
 		else:
 			self.gravityData = []
+	
+	def checkStatic(self, data):
+		varvalue = np.var(data, axis=0)
+		normvar = np.linalg.norm(varvalue)
+		# if normvar < 
+
 
 	def getQ0(self, gReal, gCur):
 		print('in get q0')
@@ -234,6 +243,16 @@ class ProcIMU:
 		## serial
 		self.my_serial = Serial(self.port, self.baudrate, timeout=self.timeout)
 		print(self.my_serial)
+
+		if self.kwargs['imu_calibrate']:
+			with open('imu_calibration_data.txt', 'w') as f:
+				while self.flag.value != 0:
+					self.put_frame()
+					print(self.data_imu[:3])
+					f.write(json.dumps(self.data_imu[:3].tolist())+'\n')
+			return
+
+		
 
 		if self.needCalibrate:
 			print(f'START CALIBRATE')
@@ -801,11 +820,22 @@ class ProcIMU:
 
 
 
-def task_serial(measure, flag, port, baudrate, timeout=None, acc=False, gyr=False, needCalibrate=False, ip=IP, ip_port=IP_PORT):
-	with CursorClient(ip, ip_port) as my_cursor_client:
-		my_proc = ProcIMU(measure, flag, port, baudrate, timeout, acc, gyr, needCalibrate, my_cursor_client)
-		my_proc.run()
+# def task_serial(measure, flag, port, baudrate, timeout=None, acc=False, gyr=False, needCalibrate=False, ip=IP, ip_port=IP_PORT):
+# 	with CursorClient(ip, ip_port) as my_cursor_client:
+# 		my_proc = ProcIMU(measure, flag, port, baudrate, timeout, acc, gyr, needCalibrate, my_cursor_client)
+# 		my_proc.run()
 
+def task_serial(measure, flag, args):
+	kwargs = vars(args)
+	kwargs['ip'] = IP
+	kwargs['ip_port'] = IP_PORT
+	kwargs['measure'] = measure
+	kwargs['flag'] = flag
+
+	with CursorClient(kwargs['ip'], kwargs['ip_port']) as my_cursor_client:
+		kwargs['client'] = my_cursor_client
+		my_proc = ProcIMU(kwargs)
+		my_proc.run()
 
 def task_debug(measure, flag):
 	import random
@@ -829,8 +859,9 @@ def main(args):
 			yield measure
 
 	if not args.debug:
-		p = Process(target=task_serial, args=(measure, flag, args.port, 
-									args.baudrate, args.timeout, args.acc, args.gyr, args.calibrate))
+		# p = Process(target=task_serial, args=(measure, flag, args.port, 
+		# 							args.baudrate, args.timeout, args.acc, args.gyr, args.calibrate))
+		p = Process(target=task_serial, args=(measure, flag, args))
 	else:
 		p = Process(target=task_debug, args=(measure,flag,))
 	p.start()
@@ -843,7 +874,7 @@ def main(args):
 	# elif args.gyr:
 	# 	ytop = MAX_GYR
 	# 	ybottom = -MAX_GYR
-	if not args.calibrate:
+	if not (args.calibrate or args.imu_calibrate):
 		my_player = Player1D(generator=gen_wrapper(), channels=3, timespan=5, 
 							ytop=ytop, ybottom=ybottom)
 		my_player.run_stream()
@@ -865,6 +896,7 @@ if __name__ == '__main__':
 	parser.add_argument('-g', '--gyr', dest='gyr', action=('store_true'), default=False, help="show gyroscope data")
 	parser.add_argument('-a', '--acc', dest='acc', action=('store_true'), default=False, help="show accelerometer data")
 	parser.add_argument('-c', '--calibrate', dest='calibrate', action=('store_true'), default=False, help="Need calibration or not")
+	parser.add_argument('-i', '--imu_calibrate', dest='imu_calibrate', action=('store_true'), default=False, help="IMU offset calibration or not")
 
 	args = parser.parse_args()
 
