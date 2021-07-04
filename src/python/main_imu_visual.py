@@ -24,7 +24,9 @@ from toolkit import filemanager
 from pca import pca_h, pca_v
 from scipy.optimize import leastsq
 from scipy.signal import savgol_filter
-
+from scipy import linalg
+import json
+import pathlib
 
 BAUDRATE = 1000000
 TIMEOUT = 1  # in seconds
@@ -66,12 +68,12 @@ class CursorClient:
 
 	def close(self):
 		self.my_socket.close()
-		print("remote client socket closed")
+		print("remote?client socket closed")
 
 	def send(self, touch_state, x, y):
 		## touch state: 1按下，2按下时移动，3松开，4松开时移动
 		paras = [touch_state, x, y]
-		print(f"send: {paras}")
+		print(f"[send]: {paras}")
 		self.my_socket.send((" ".join([str(item) for item in paras])+"\n").encode())
 
 	def sendButton(self, cmd):
@@ -82,9 +84,16 @@ MAX_ACC = 2 * 9.8  ## m/s^2
 MAX_GYR = 2000  ## degree/s (dps)
 def quat_to_mat(q):
 	w, x, y, z = q
-	return np.matrix([[1-2*y*y-2*z*z, 2*x*y+2*w*z, 2*x*z-2*w*y], [2*x*y-2*w*z, 1-2*x*x-2*z*z, 2*y*z+2*w*x], [2*x*z+2*w*y, 2*y*z-2*w*x, 1-2*x*x-2*y*y]]).T
+	return np.array([[1-2*y*y-2*z*z, 2*x*y+2*w*z, 2*x*z-2*w*y], [2*x*y-2*w*z, 1-2*x*x-2*z*z, 2*y*z+2*w*x], [2*x*z+2*w*y, 2*y*z-2*w*x, 1-2*x*x-2*y*y]]).T
 
 class Smooth:
+	def __init__(self):
+		self.data = 0
+	def update(self, d):
+		self.data = d
+	def getData(self):
+		return self.data
+class SavgolSmooth(Smooth):
 	def __init__(self, N = 200, window_length = 25):
 		self.N = N
 		self.window_length = window_length
@@ -96,6 +105,28 @@ class Smooth:
 	def getData(self):
 		y = savgol_filter(self.data, self.window_length, 5)
 		return y[-1]
+class NearbySmooth(Smooth):
+	def __init__(self, threshold = 0.1):
+		self.threshold = threshold
+		self.lastData = -100000
+	def update(self, d):
+		if self.lastData == -100000 or abs(self.lastData - d) < self.threshold:
+			self.lastData = d
+	def getData(self):
+		return self.lastData
+class AverageSmooth(Smooth):
+	def __init__(self, N = 100):
+		self.data = []
+		self.N = N
+	def update(self, d):
+		self.data.append(d)
+		if len(self.data) > self.N:
+			self.data = self.data[-self.N:]
+	def getData(self):
+		return np.mean(self.data)
+
+
+
 class ProcIMU:
 
 	RESOLUTION = 2**15
@@ -110,7 +141,7 @@ class ProcIMU:
 	V0 = 255
 	R0_RECI = 1  ## a constant to multiply the value
 
-	def __init__(self, measure, flag, port, baudrate, timeout=None, acc=False, gyr=False, my_cursor_client=None):
+	def __init__(self, measure, flag, port, baudrate, timeout=None, acc=False, gyr=False, needCalibrate=False, my_cursor_client=None):
 		self.measure = measure
 		self.flag = flag
 		self.port = port
@@ -153,21 +184,38 @@ class ProcIMU:
 		self.smoothX = Smooth()
 		self.smoothY = Smooth()
 		self.inputting = False
-		self.std_Q = (0.48688449,-0.28526537,0.82494558,0.03212407)
-		self.rotQ = (quat_to_mat(self.std_Q)).I
+		# self.std_Q = (0.48688449,-0.28526537,0.82494558,0.03212407)
+		# self.rotQ = (quat_to_mat(self.std_Q)).I
 
-		self.calibrate = True
+		self.needCalibrate = needCalibrate
+		self.M = np.array([[0.18883633390998655, -0.9758716640520846, 0.10961448031921497], [0.9179313065437382, 0.21507203171789888, 0.3333858689861354],[-0.34891683172690546, 0.03766319785879299, 0.9363965655985224]]).T
 		self.firstPass = True
 		self.gravityCheck = False
 		self.gravityData = []
 		self.running = False
-		self.G_ref = 9.85
-		self.G_threshold = 0.1
+		self.G_ref = 10.0
+		self.G_threshold = 0.2
+		if not self.needCalibrate:
+			self.loadM()
+	def loadM(self):
+		p = pathlib.Path('.') / 'M_value.txt'
+		if not p.exists():
+			return
+		with open(p) as f:
+			data = json.loads(f.read().strip())
+			self.M = np.array(data)
+			print(f'[calibrate] load M matrix complete!')
+	
+	def saveM(self):
+		with open('M_value.txt', 'w') as f:
+			f.write(json.dumps(self.M.tolist()))
+			print(f'[calibrate] M matrix saved!')
+
 
 
 	def checkGravity(self):
 		normAcc = np.linalg.norm(self.data_imu[:3])
-		print(f'norm:{normAcc}')
+		print(f'\rnorm:{normAcc}, data: {self.data_imu[0]}, {self.data_imu[1]}, {self.data_imu[2]}', end='')
 		if abs(normAcc - self.G_ref) < self.G_threshold:
 			self.gravityData.append(self.data_imu[:3])
 			if len(self.gravityData) >= 100:
@@ -187,14 +235,14 @@ class ProcIMU:
 		self.my_serial = Serial(self.port, self.baudrate, timeout=self.timeout)
 		print(self.my_serial)
 
-		if not self.calibrate:
+		if self.needCalibrate:
 			print(f'START CALIBRATE')
 			while self.flag.value != 0:
 				self.put_frame()
 				self.update_quaternion()
 				if not self.gravityCheck:
 					self.checkGravity()
-					print(f'\r[calibrate] Checking Gravity...\n', end='')
+					# print(f'\r[calibrate] Checking Gravity...\n', end='')
 				else:
 					if self.firstPass:
 						print(f'\n[calibrate] Gravity pass!')
@@ -208,25 +256,31 @@ class ProcIMU:
 						if len(self.gravityData) >= 100:
 							self.upVec = np.mean(self.gravityData, axis=0)
 							print(f'\n[calibrate] Up Grivity vector:{self.upVec}')
-							self.xVec = np.cross(self.gravityVec, self.upVec)
-							self.yVec = -self.gravityVec
-							self.xVec = self.xVec / np.linalg.norm(self.xVec)
-							self.yVec = self.yVec / np.linalg.norm(self.yVec)
-							self.zVec = np.cross(self.xVec, self.yVec)
-							assert(abs(np.linalg.norm(self.zVec) - 1.0) < 0.01)
+							print(f'[calibrate] Crossed Gravity: {self.gravityVec}')
+							angle = np.degrees(np.arccos(np.dot(self.gravityVec, self.upVec) / np.linalg.norm(self.gravityVec) / np.linalg.norm(self.upVec)))
+							print(f'[calibrate] angle: {angle}°')
+							if abs(angle) < 10:
+								print(f'[calibrate] angle too small!!!!!!')
+							else:
+								self.xVec = np.cross(self.gravityVec, self.upVec)
+								self.yVec = -self.gravityVec
+								self.xVec = self.xVec / np.linalg.norm(self.xVec)
+								self.yVec = self.yVec / np.linalg.norm(self.yVec)
+								self.zVec = np.cross(self.xVec, self.yVec)
+								assert(abs(np.linalg.norm(self.zVec) - 1.0) < 0.01)
+								print(f'[calibrate] M matrix calculated!')
+								print(f'[[{self.xVec[0]}, {self.xVec[1]}, {self.xVec[2]}], [{self.yVec[0]}, {self.yVec[1]}, {self.yVec[2]}],[{self.zVec[0]}, {self.zVec[1]}, {self.zVec[2]}]]')
+								self.M = np.array([self.xVec, self.yVec, self.zVec]).T
+								self.saveM()
 							self.gravityData = []
-							print(f'[calibrate] M matrix calculated!')
-							print(f'[[{self.xVec[0]}, {self.xVec[1]}, {self.xVec[2]}], [{self.yVec[0]}, {self.yVec[1]}, {self.yVec[2]}],[{self.zVec[0]}, {self.zVec[1]}, {self.zVec[2]}]]')
-							self.gravityData = []
-		else: # self.calibrate == True
-			self.M = np.matrix([[0.18154237862382444, -0.9717136052726119, 0.15104646335385308], [0.8742922546696849, 0.22980217135375075, 0.4275558623919224],[-0.4501726537543158, 0.054439244752331986, 0.8912805116474796]]).T
+		else: # self.needCalibrate == False
 			print(f'[running] M: {self.M}')
 			while self.flag.value != 0:
 				self.put_frame()
 				normAcc = np.linalg.norm(self.data_imu[:3])
 				if not self.running and abs(normAcc - self.G_ref) < self.G_threshold:
 					print(f'[running] getting q0...')
-					self.Q0 = self.getQ0((self.M*np.matrix([0, -1, 0]).T).T.A[0], self.data_imu[:3])
+					self.Q0 = self.getQ0(self.M.dot(np.array([0, -1, 0])), self.data_imu[:3])
 					self.madgwick = ahrs.filters.Madgwick(gain = 1)
 					# self.madgwick.Dt = self.cur_time - self.last_frame_time
 					# self.madgwick.frequency = 1 / self.madgwick.Dt
@@ -236,9 +290,10 @@ class ProcIMU:
 				elif self.running:
 					self.Q = self.madgwick.updateIMU(self.Q, gyr=self.data_imu[3:], acc=self.data_imu[:3])
 					R = quat_to_mat(self.Q)
-					headRot = self.M.I * R * self.M
-					headPos = headRot * np.matrix([0, 0, -1]).T
-					pos = headPos.T.A[0]
+					# headRot = self.M.I * R * self.M
+					headRot = linalg.inv(self.M).dot(R).dot(self.M)
+					headPos = headRot.dot(np.array([0, 0, -1]))
+					pos = headPos
 					assert(abs(np.linalg.norm(pos) - 1.0) < 0.01)
 					# x = np.degrees(np.arctan(pos[2] / pos[0]))
 					# y = np.degrees(np.arccos(pos[1]))
@@ -246,33 +301,36 @@ class ProcIMU:
 					y = np.degrees(np.arcsin(pos[1]))
 
 					value = np.sum(self.data_pressure.reshape(16,-1)[:,2:4])
-					r32 = headRot.A[2][1]
-					r33 = headRot.A[2][2]
-					r31 = headRot.A[2][0]
-					r21 = headRot.A[1][0]
-					r11 = headRot.A[0][0]
-					ax = np.arctan2(r32, r33)
-					ay = np.arctan2(-r31, np.sqrt(r32*r32+r33*r33))
-					az = np.arctan2(r21, r11)
+					r32 = headRot[2][1]
+					r33 = headRot[2][2]
+					r31 = headRot[2][0]
+					r21 = headRot[1][0]
+					r11 = headRot[0][0]
+					ax = np.degrees(np.arctan2(r32, r33))
+					ay = np.degrees(np.arctan2(-r31, np.sqrt(r32*r32+r33*r33)))
+					az = np.degrees(np.arctan2(r21, r11))
 					# print(f'[running] x: {ax}, y: {ay}, z:{az}')
-					# print(f'[running] pos: {pos[0]}, {pos[1]}, {pos[2]}')
+					print(f'[running] pos: {pos[0]}, {pos[1]}, {pos[2]}')
+					print(f'[running] euler: {ax}, {ay}, {az}')
 					#0:blue 1:orange 2: green
 					# self.measure[:3] = [ax, ay, 0]
-					# self.smoothX.update(ay)
-					# self.smoothY.update(ax)
-					# ay = self.smoothX.getData()
-					# ax = self.smoothY.getData()
-					self.measure[:3] = [x, y, 0]
+					
+					self.measure[:3] = [ax, ay, az]
+					# self.measure[:3] = self.data_imu[:3]
 					print(f'[running] x: {x}, y: {y}, v: {value}')
 					# print(f'[running] x: {ay}, y: {ax}, v:{value}')
-					self.send_swn(x, y, value)
-	def send_swn(self, anglex, angley, value):
-
-		threshold = 10
-		x_top = 0.3
-		x_bot = 0.1
-		y_top = -2.3	
-		y_bot = -2.13
+					self.smoothX.update(x)
+					self.smoothY.update(y)
+					x = self.smoothX.getData()
+					y = self.smoothY.getData()
+					self.send_swn(az, -1, -30, ax, -110, -130, value)
+					# self.send_swn(az, y, value)
+	def send_swn(self, anglex, x_bot, x_top, angley, y_bot, y_top, value):
+		threshold = 43
+		# x_top = 0.3
+		# x_bot = 0.1
+		# y_top = -2.3	
+		# y_bot = -2.13
 
 		x = (anglex - x_bot) / (x_top - x_bot)
 		y = (y_top - angley) / (y_top - y_bot)
@@ -743,9 +801,9 @@ class ProcIMU:
 
 
 
-def task_serial(measure, flag, port, baudrate, timeout=None, acc=False, gyr=False, ip=IP, ip_port=IP_PORT):
+def task_serial(measure, flag, port, baudrate, timeout=None, acc=False, gyr=False, needCalibrate=False, ip=IP, ip_port=IP_PORT):
 	with CursorClient(ip, ip_port) as my_cursor_client:
-		my_proc = ProcIMU(measure, flag, port, baudrate, timeout, acc, gyr, my_cursor_client)
+		my_proc = ProcIMU(measure, flag, port, baudrate, timeout, acc, gyr, needCalibrate, my_cursor_client)
 		my_proc.run()
 
 
@@ -772,7 +830,7 @@ def main(args):
 
 	if not args.debug:
 		p = Process(target=task_serial, args=(measure, flag, args.port, 
-									args.baudrate, args.timeout, args.acc, args.gyr))
+									args.baudrate, args.timeout, args.acc, args.gyr, args.calibrate))
 	else:
 		p = Process(target=task_debug, args=(measure,flag,))
 	p.start()
@@ -785,11 +843,15 @@ def main(args):
 	# elif args.gyr:
 	# 	ytop = MAX_GYR
 	# 	ybottom = -MAX_GYR
-	my_player = Player1D(generator=gen_wrapper(), channels=3, timespan=5, 
-						ytop=ytop, ybottom=ybottom)
-	my_player.run_stream()
+	if not args.calibrate:
+		my_player = Player1D(generator=gen_wrapper(), channels=3, timespan=5, 
+							ytop=ytop, ybottom=ybottom)
+		my_player.run_stream()
 
-	flag.value = 0
+		flag.value = 0
+	else:
+		p = input()
+		flag.value = 0
 	p.join()
 
 
@@ -802,6 +864,7 @@ if __name__ == '__main__':
 	parser.add_argument('-d', '--debug', dest='debug', action=('store_true'), default=False, help="debug mode")
 	parser.add_argument('-g', '--gyr', dest='gyr', action=('store_true'), default=False, help="show gyroscope data")
 	parser.add_argument('-a', '--acc', dest='acc', action=('store_true'), default=False, help="show accelerometer data")
+	parser.add_argument('-c', '--calibrate', dest='calibrate', action=('store_true'), default=False, help="Need calibration or not")
 
 	args = parser.parse_args()
 
