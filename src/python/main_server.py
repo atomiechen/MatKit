@@ -247,7 +247,8 @@ def main(args):
 		from toolkit.visual import gen_reshape
 		my_player = Player(
 			zlim=config['visual']['zlim'], 
-			N=config['sensor']['shape']
+			N=config['sensor']['shape'],
+			scatter=args.scatter
 		)
 		my_player.run_stream(
 			generator=gen_reshape(data_out, config['sensor']['shape']), 
@@ -290,6 +291,8 @@ if __name__ == '__main__':
 	parser.add_argument('-o', dest='output', action='store', default=OUTPUT_FILENAME, help="output processed data to file")
 
 	parser.add_argument('-i', '--imu', dest='imu', action=make_action('store_true'), default=False, help="support IMU")
+
+	parser.add_argument('--scatter', dest='scatter', action=make_action('store_true'), default=False, help="show scatter plot")
 
 	args = parser.parse_args()
 

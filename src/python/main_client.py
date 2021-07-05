@@ -114,7 +114,8 @@ def main(args):
 			my_processor.print_info()
 			my_player = Player(
 				zlim=config['visual']['zlim'], 
-				N=config['process']['interp']
+				N=config['process']['interp'],
+				scatter=args.scatter
 			)
 
 			my_generator = my_client.gen(input_arg)
@@ -140,6 +141,8 @@ if __name__ == '__main__':
 	parser.add_argument('-f', dest='fps', action=make_action('store'), default=FPS, type=int, help="frames per second")
 	parser.add_argument('-m', '--matplot', dest='matplot', action=make_action('store_true'), default=False, help="use mathplotlib to plot")
 	parser.add_argument('--config', dest='config', action=make_action('store'), default=None, help="specify configuration file")
+
+	parser.add_argument('--scatter', dest='scatter', action=make_action('store_true'), default=False, help="show scatter plot")
 	args = parser.parse_args()
 
 	main(args)
