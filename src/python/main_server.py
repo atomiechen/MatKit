@@ -64,6 +64,7 @@ def task_serial(paras):
 			my_setter, 
 			paras['data_out'], 
 			paras['data_raw'], 
+			paras['data_imu'], 
 			paras['idx_out'],
 			raw=paras['config']['server_mode']['raw'],
 			warm_up=paras['config']['process']['warm_up'],
@@ -101,6 +102,7 @@ def task_server(paras):
 		with Userver(
 			paras['data_out'], 
 			paras['data_raw'], 
+			paras['data_imu'], 
 			paras['idx_out'], 
 			paras['config']['connection']['server_address'], 
 			total=paras['config']['sensor']['total'],
@@ -207,6 +209,7 @@ def main(args):
 	## shared variables
 	data_out = Array('d', config['sensor']['total'])  # d for double
 	data_raw = Array('d', config['sensor']['total'])  # d for double
+	data_imu = Array('d', 6)  # d for double
 	idx_out = Value('i')  # i for int
 	idx_out_file = Value('i')
 
@@ -216,6 +219,7 @@ def main(args):
 		"config": config,
 		"data_out": data_out,
 		"data_raw": data_raw,
+		"data_imu": data_imu,
 		"idx_out": idx_out,
 		"idx_out_file": idx_out_file,
 		"pipe_proc": pipe_proc,

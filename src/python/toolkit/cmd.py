@@ -14,6 +14,7 @@ class CMD(IntEnum):
 		RESTART (int): restart the server with processing parameters
 		PARAS (int): get current processing parameters of the server
 		REC_BREAK (int): stop current recording and start a new one
+		DATA_IMU (int): get IMU data frame and frame index
 	"""
 	
 	CLOSE = 0
@@ -25,3 +26,4 @@ class CMD(IntEnum):
 	RESTART = 6
 	PARAS = 7
 	REC_BREAK = 8
+	DATA_IMU = 9

@@ -527,7 +527,7 @@ class Proc:
 	FILENAME_TEMPLATE_RAW = "record_%Y%m%d%H%M%S_raw.csv"
 
 
-	def __init__(self, n, data_setter, data_out, data_raw, idx_out, **kwargs):
+	def __init__(self, n, data_setter, data_out, data_raw, data_imu, idx_out, **kwargs):
 		## sensor info
 		self.n = check_shape(n)
 		self.total = self.n[0] * self.n[1]
@@ -556,11 +556,11 @@ class Proc:
 
 		## intermediate data
 		self.data_tmp = np.zeros(self.total, dtype=float)
-		self.data_imu = np.zeros(6, dtype=float)
 
 		## shared data
 		self.data_out = data_out
 		self.data_raw = data_raw
+		self.data_imu = data_imu
 		self.idx_out = idx_out
 
 
@@ -595,7 +595,7 @@ class Proc:
 			frames = self.idx_out.value - self.last_frame_idx
 			print(f"  frame rate: {frames/duration:.3f} fps  running time: {run_duration:.3f} s")
 			if self.imu:
-				print(f"  {self.data_imu}")
+				print(f"  {self.data_imu[:]}")
 			self.last_frame_idx = self.idx_out.value
 			self.last_time = self.cur_time
 		if self.filename:

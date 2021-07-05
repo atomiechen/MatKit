@@ -38,13 +38,14 @@ class Userver:
 	BUF_SIZE = 2048
 	REC_ID = 0
 
-	def __init__(self, data_out, data_raw, idx_out, server_addr=None, **kwargs):
+	def __init__(self, data_out, data_raw, data_imu, idx_out, server_addr=None, **kwargs):
 		## for multiprocessing communication
 		self.pipe_conn = None
 
 		self.config(**kwargs)
 		self.data_out = data_out
 		self.data_raw = data_raw
+		self.data_imu = data_imu
 		self.idx_out = idx_out
 		self.server_addr = server_addr
 
@@ -136,15 +137,19 @@ class Userver:
 			reply = pack("=B", 0)
 			self.pipe_conn.send((FLAG.FLAG_REC_STOP,))
 			self.my_socket.sendto(reply, self.client_addr)
-		## TODO
 		elif self.data[0] == CMD.RESTART:
+			## TODO
 			pass
 		elif self.data[0] == CMD.PARAS:
+			## TODO
 			pass
 		elif self.data[0] == CMD.REC_BREAK:
 			reply = pack("=B", 0)
 			self.my_socket.sendto(reply, self.client_addr)
 			self.pipe_conn.send((FLAG.FLAG_REC_BREAK,))
+		elif self.data[0] == CMD.DATA_IMU:
+			reply = pack("=6di", *(self.data_imu), self.idx_out.value)
+			self.my_socket.sendto(reply, self.client_addr)
 
 	def print_service(self):
 		if self.UDP:
