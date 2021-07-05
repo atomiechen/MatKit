@@ -192,16 +192,13 @@ class DataHandler:
 	def __init__(*args, **kwargs):
 		pass
 
-	def prepare(*args, **kwargs):
+	def prepare(self, generator):
 		pass
 
-	def prepare_loop(*args, **kwargs):
+	def handle(self, data):
 		pass
 
-	def handle(*args, **kwargs):
-		pass
-
-	def final(*args, **kwargs):
+	def final(self):
 		pass
 
 
@@ -301,7 +298,8 @@ class DataHandlerPressure(DataHandler):
 			# 	self.data_tmp[i] = self.calReciprocalResistance(self.data_tmp[i], self.V0, self.R0_RECI)
 			self.calReci_numpy_array(self.data_tmp, self.V0, self.R0_RECI)
 
-	def prepare(self):
+	def prepare(self, generator):
+		self.generator = generator
 		if not self.my_raw:
 			self.prepare_spatial()
 			self.prepare_temporal()
@@ -343,17 +341,20 @@ class DataHandlerPressure(DataHandler):
 		self.data_win = np.zeros((self.my_WIN_SIZE, self.total), dtype=float)
 		self.win_frame_idx = 0
 		## for preparing calibration
-		self.frame_cnt = 0
+		frame_cnt = 0
 		# ## accumulate data
-		# while frame_cnt < self.my_INIT_CALI_FRAMES:
-		# 	self.get_raw_frame()
-		# 	self.filter()
-		# 	self.data_zero += self.data_tmp
-		# 	frame_cnt += 1
-		# ## get average
-		# self.data_zero /= frame_cnt
-		# ## calculate data_win
-		# self.data_win[:] = self.data_zero
+		while frame_cnt < self.my_INIT_CALI_FRAMES:
+			# self.get_raw_frame()
+			data = next(self.generator)
+			self.handle_raw_frame(data)
+
+			self.filter()
+			self.data_zero += self.data_tmp
+			frame_cnt += 1
+		## get average
+		self.data_zero /= frame_cnt
+		## calculate data_win
+		self.data_win[:] = self.data_zero
 
 	def calibrate(self):
 		if self.my_INIT_CALI_FRAMES <= 0:
@@ -405,10 +406,13 @@ class DataHandlerPressure(DataHandler):
 
 		if self.need_cache > 0:
 			print(f"Cache {self.need_cache} frames for filter.")
-			# while self.need_cache > 0:
-			# 	self.get_raw_frame()
-			# 	self.filter()
-			# 	self.need_cache -= 1
+			while self.need_cache > 0:
+				# self.get_raw_frame()
+				data = next(self.generator)
+				self.handle_raw_frame(data)
+
+				self.filter()
+				self.need_cache -= 1
 
 	def temporal_filter(self):
 		if self.my_filter_temporal == FILTER_TEMPORAL.NONE:
@@ -687,17 +691,28 @@ class Proc:
 		self.start_time = time.time()
 		self.reset()
 
-		self.handler_pressure.prepare()
-		self.handler_imu.prepare()
 
-		ret = True
-		while ret:
-			self.get_raw_frame()
-			ret = self.handler_pressure.prepare_loop(self.data_tmp)
-		ret = True
-		while ret:
-			self.get_raw_frame()
-			ret = self.handler_imu.prepare_loop(self.data_imu)
+		def gen_pressure():
+			while True:
+				self.get_raw_frame()
+				yield self.data_tmp
+
+		def gen_imu():
+			while True:
+				self.get_raw_frame()
+				yield self.data_imu
+
+		self.handler_pressure.prepare(gen_pressure())
+		self.handler_imu.prepare(gen_imu())
+
+		# ret = True
+		# while ret:
+		# 	self.get_raw_frame()
+		# 	ret = self.handler_pressure.prepare_loop(self.data_tmp)
+		# ret = True
+		# while ret:
+		# 	self.get_raw_frame()
+		# 	ret = self.handler_imu.prepare_loop(self.data_imu)
 
 		print("Running processing...")
 		while True:
@@ -752,6 +767,9 @@ class Proc:
 
 			self.data_out[:] = self.data_tmp
 			self.post_action()
+
+		self.handler_pressure.final()
+		self.handler_imu.final()
 
 
 if __name__ == '__main__':
