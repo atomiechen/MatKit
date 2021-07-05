@@ -182,6 +182,8 @@ def prepare_config(args):
 		config['visual']['fps'] = args.fps
 	if config['visual']['pyqtgraph'] is None or hasattr(args, 'pyqtgraph'+DEST_SUFFIX):
 		config['visual']['pyqtgraph'] = args.pyqtgraph
+	if config['visual']['scatter'] is None or hasattr(args, 'scatter'+DEST_SUFFIX):
+		config['visual']['scatter'] = args.scatter
 	if config['server_mode']['service'] is None or hasattr(args, 'service'+DEST_SUFFIX):
 		config['server_mode']['service'] = args.service
 	if config['server_mode']['raw'] is None or hasattr(args, 'raw'+DEST_SUFFIX):
@@ -248,7 +250,7 @@ def main(args):
 		my_player = Player(
 			zlim=config['visual']['zlim'], 
 			N=config['sensor']['shape'],
-			scatter=args.scatter
+			scatter=config['visual']['scatter']
 		)
 		my_player.run_stream(
 			generator=gen_reshape(data_out, config['sensor']['shape']), 

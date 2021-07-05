@@ -64,6 +64,8 @@ def prepare_config(args):
 		config['visual']['fps'] = args.fps
 	if config['visual']['pyqtgraph'] is None or hasattr(args, 'matplot'+DEST_SUFFIX):
 		config['visual']['pyqtgraph'] = not args.matplot
+	if config['visual']['scatter'] is None or hasattr(args, 'scatter'+DEST_SUFFIX):
+		config['visual']['scatter'] = args.scatter
 	if config['client_mode']['raw'] is None or hasattr(args, 'raw'+DEST_SUFFIX):
 		config['client_mode']['raw'] = args.raw
 	if config['client_mode']['interactive'] is None or hasattr(args, 'interactive'+DEST_SUFFIX):
@@ -115,7 +117,7 @@ def main(args):
 			my_player = Player(
 				zlim=config['visual']['zlim'], 
 				N=config['process']['interp'],
-				scatter=args.scatter
+				scatter=config['visual']['scatter']
 			)
 
 			my_generator = my_client.gen(input_arg)
