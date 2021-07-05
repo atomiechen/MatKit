@@ -1,4 +1,4 @@
-from numpy import arange, meshgrid, zeros
+from numpy import arange, meshgrid, zeros, array
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator, FixedLocator, FormatStrFormatter
@@ -52,10 +52,24 @@ class Player3DMatplot(Player3D):
 		## rotate the camera
 		self.ax.azim += 180  ## = 120
 
+		self.scatter = False
+		self.config(**kwargs)
+
 		heightR = zeros( self.X.shape )
-		self.surf = self.ax.plot_surface( 
-			self.X, self.Y, heightR, rstride=1, cstride=1, cmap=cm.YlOrRd,
-			linewidth=0, antialiased=True )
+		if self.scatter:
+			self.X = self.X.reshape(-1)
+			self.Y = self.Y.reshape(-1)
+			heightR = heightR.reshape(-1)
+			self.scatter_plot = self.ax.scatter(self.X, self.Y, heightR, marker='o')
+		else:
+			self.surf = self.ax.plot_surface( 
+				self.X, self.Y, heightR, rstride=1, cstride=1, cmap=cm.YlOrRd,
+				linewidth=0, antialiased=True )
+
+	def config(self, *, scatter=None, **kwargs):
+		super().config(**kwargs)
+		if scatter is not None:
+			self.scatter = scatter
 
 	def _start(self):
 		super()._start()
@@ -66,10 +80,14 @@ class Player3DMatplot(Player3D):
 		plt.close()
 
 	def _draw(self, data):
-		self.surf.remove()
-		self.surf = self.ax.plot_surface( 
-			self.X, self.Y, data, rstride=1, cstride=1, cmap=cm.YlOrRd,
-			linewidth=0, antialiased=True )
+		if self.scatter:
+			data = array(data)
+			self.scatter_plot._offsets3d = (self.X, self.Y, data.reshape(-1))
+		else:
+			self.surf.remove()
+			self.surf = self.ax.plot_surface( 
+				self.X, self.Y, data, rstride=1, cstride=1, cmap=cm.YlOrRd,
+				linewidth=0, antialiased=True )
 
 	def _prepare_stream(self):
 		self.fig.canvas.mpl_connect('key_press_event', self.on_key_stream)
