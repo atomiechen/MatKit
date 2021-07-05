@@ -102,3 +102,5 @@ visual:
   zlim: ~
   ## frame rate: 100
   fps: ~
+  ## scatter plot: false
+  scatter: ~
