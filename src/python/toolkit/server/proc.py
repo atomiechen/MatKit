@@ -549,6 +549,7 @@ class Proc:
 
 		self.imu = False
 
+		self.config(**kwargs)
 		kwargs['n'] = self.n
 		self.handler_pressure = DataHandlerPressure(**kwargs)
 		self.handler_imu = DataHandlerIMU(**kwargs)
