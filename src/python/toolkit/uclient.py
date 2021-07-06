@@ -18,6 +18,7 @@ from os import unlink
 import errno
 from struct import calcsize, pack, unpack, unpack_from
 from typing import Iterable
+import time
 
 from .tools import check_shape
 from .cmd import CMD
@@ -290,6 +291,7 @@ class Uclient:
 			idx_prev = self.frame_idx
 			self.fetch_frame_base(input_arg)
 			while self.frame_idx == idx_prev:
+				time.sleep(0.001)
 				self.fetch_frame_base(input_arg)
 		else:
 			self.fetch_frame_base(input_arg)
@@ -312,6 +314,7 @@ class Uclient:
 			idx_prev = self.frame_idx
 			self.fetch_imu_base()
 			while self.frame_idx == idx_prev:
+				time.sleep(0.001)
 				self.fetch_imu_base()
 		else:
 			self.fetch_imu_base()
