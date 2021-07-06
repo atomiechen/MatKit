@@ -16,7 +16,9 @@ if __name__ == '__main__':
             data.append(d)
             if len(data) > FRAME_LEN:
                 if checkStatic(data):
-                    print(np.mean(data, axis = 0))
+                    # print(np.mean(data, axis = 0))
+                    point = np.mean(data, axis=0)
+                    print(f"[{point[0]},{point[1]},{point[2]}],")
                     data = []
                 else:
                     data = data[-FRAME_LEN:]

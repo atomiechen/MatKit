@@ -64,6 +64,7 @@ def task_serial(paras):
 			my_setter, 
 			paras['data_out'], 
 			paras['data_raw'], 
+			paras['data_imu'], 
 			paras['idx_out'],
 			raw=paras['config']['server_mode']['raw'],
 			warm_up=paras['config']['process']['warm_up'],
@@ -101,6 +102,7 @@ def task_server(paras):
 		with Userver(
 			paras['data_out'], 
 			paras['data_raw'], 
+			paras['data_imu'], 
 			paras['idx_out'], 
 			paras['config']['connection']['server_address'], 
 			total=paras['config']['sensor']['total'],
@@ -180,6 +182,8 @@ def prepare_config(args):
 		config['visual']['fps'] = args.fps
 	if config['visual']['pyqtgraph'] is None or hasattr(args, 'pyqtgraph'+DEST_SUFFIX):
 		config['visual']['pyqtgraph'] = args.pyqtgraph
+	if config['visual']['scatter'] is None or hasattr(args, 'scatter'+DEST_SUFFIX):
+		config['visual']['scatter'] = args.scatter
 	if config['server_mode']['service'] is None or hasattr(args, 'service'+DEST_SUFFIX):
 		config['server_mode']['service'] = args.service
 	if config['server_mode']['raw'] is None or hasattr(args, 'raw'+DEST_SUFFIX):
@@ -207,6 +211,7 @@ def main(args):
 	## shared variables
 	data_out = Array('d', config['sensor']['total'])  # d for double
 	data_raw = Array('d', config['sensor']['total'])  # d for double
+	data_imu = Array('d', 6)  # d for double
 	idx_out = Value('i')  # i for int
 	idx_out_file = Value('i')
 
@@ -216,6 +221,7 @@ def main(args):
 		"config": config,
 		"data_out": data_out,
 		"data_raw": data_raw,
+		"data_imu": data_imu,
 		"idx_out": idx_out,
 		"idx_out_file": idx_out_file,
 		"pipe_proc": pipe_proc,
@@ -243,7 +249,8 @@ def main(args):
 		from toolkit.visual import gen_reshape
 		my_player = Player(
 			zlim=config['visual']['zlim'], 
-			N=config['sensor']['shape']
+			N=config['sensor']['shape'],
+			scatter=config['visual']['scatter']
 		)
 		my_player.run_stream(
 			generator=gen_reshape(data_out, config['sensor']['shape']), 
@@ -286,6 +293,8 @@ if __name__ == '__main__':
 	parser.add_argument('-o', dest='output', action='store', default=OUTPUT_FILENAME, help="output processed data to file")
 
 	parser.add_argument('-i', '--imu', dest='imu', action=make_action('store_true'), default=False, help="support IMU")
+
+	parser.add_argument('--scatter', dest='scatter', action=make_action('store_true'), default=False, help="show scatter plot")
 
 	args = parser.parse_args()
 

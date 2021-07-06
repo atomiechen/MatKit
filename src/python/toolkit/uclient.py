@@ -12,7 +12,6 @@ try:
 	support_unix_socket = True
 except ImportError:
 	support_unix_socket = False
-from enum import IntEnum
 from random import randint
 from numpy import zeros
 from os import unlink
@@ -21,33 +20,7 @@ from struct import calcsize, pack, unpack, unpack_from
 from typing import Iterable
 
 from .tools import check_shape
-
-
-class CMD(IntEnum):
-
-	"""Pre-defined commands for communication with server.
-	
-	Attributes:
-		CLOSE (int): Close the server
-		DATA (int): get processed data frame and frame index
-		RAW (int): get raw data frame and frame index
-		REC_DATA (int): record processed data to file
-		REC_RAW (int): record raw data to file
-		REC_STOP (int): stop recording
-		RESTART (int): restart the server with processing parameters
-		PARAS (int): get current processing parameters of the server
-		REC_BREAK (int): stop current recording and start a new one
-	"""
-	
-	CLOSE = 0
-	DATA = 1
-	RAW = 2
-	REC_DATA = 3
-	REC_RAW = 4
-	REC_STOP = 5
-	RESTART = 6
-	PARAS = 7
-	REC_BREAK = 8
+from .cmd import CMD
 
 
 class Uclient:
@@ -120,6 +93,7 @@ class Uclient:
 		self.total = self.N[0] * self.N[1]
 		self.data_parse = zeros(self.total, dtype=float)
 		self.data_reshape = self.data_parse.reshape(self.N[0], self.N[1])
+		self.data_imu = zeros(6, dtype=float)
 		self.frame_idx = 0
 
 		self.init_socket()
@@ -304,6 +278,12 @@ class Uclient:
 			paras += unpack_from("=id", self.data, start)
 		return paras
 
+	def recv_imu(self):
+		result = unpack_from("=6di", self.data)
+		self.data_imu[:] = result[:-1]
+		self.frame_idx = result[-1]
+		return self.data_imu, self.frame_idx
+
 	def fetch_frame(self, input_arg=CMD.DATA):
 		try:
 			self.send_cmd(input_arg)
@@ -319,6 +299,22 @@ class Uclient:
 		except:
 			pass
 		return self.data_reshape, self.frame_idx
+
+	def fetch_imu(self):
+		try:
+			self.send_cmd(CMD.DATA_IMU)
+			self.recv_imu()
+		except:
+			pass
+		return self.data_imu
+
+	def fetch_imu_and_index(self):
+		try:
+			self.send_cmd(CMD.DATA_IMU)
+			self.recv_imu()
+		except:
+			pass
+		return self.data_imu, self.frame_idx
 
 	def gen(self, input_arg=CMD.DATA):
 		"""generate a data generator given specific command
@@ -350,6 +346,28 @@ class Uclient:
 				return
 			except:
 				yield self.data_reshape, self.frame_idx
+
+	def gen_imu(self):
+		while True:
+			try:
+				self.send_cmd(CMD.DATA_IMU)
+				self.recv_imu()
+				yield self.data_imu
+			except GeneratorExit:
+				return
+			except:
+				yield self.data_imu
+
+	def gen_imu_and_index(self):
+		while True:
+			try:
+				self.send_cmd(CMD.DATA_IMU)
+				self.recv_imu()
+				yield self.data_imu, self.frame_idx
+			except GeneratorExit:
+				return
+			except:
+				yield self.data_imu, self.frame_idx
 
 	def interactive_cmd(self, my_cmd):
 		"""interactive command parser
@@ -481,6 +499,11 @@ class Uclient:
 					print("successfully break")
 				else:
 					print("fail to break!")
+			elif my_cmd == CMD.DATA_IMU:
+				self.send_cmd(my_cmd)
+				data_imu, frame_idx = self.recv_imu()
+				print(f"IMU data: {data_imu}")
+				print(f"frame_idx: {frame_idx}")
 
 		except (FileNotFoundError, ConnectionResetError):
 			print("server off-line")

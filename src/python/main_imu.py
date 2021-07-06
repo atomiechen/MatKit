@@ -1,5 +1,3 @@
-from serial import Serial
-from serial.tools.list_ports import comports
 import argparse
 import numpy as np
 from struct import calcsize, pack, unpack, unpack_from
@@ -18,8 +16,10 @@ from ahrs.common.orientation import acc2q
 from scipy.spatial.transform import Rotation as R
 from pyquaternion import Quaternion
 
+from toolkit.uclient import Uclient
 from toolkit.visual.player1d import Player1D
 from toolkit import filemanager
+from toolkit.tools import blank_config, check_config
 
 from pca import pca_h, pca_v
 from scipy.optimize import leastsq
@@ -28,26 +28,13 @@ from scipy import linalg
 import json
 import pathlib
 
-BAUDRATE = 1000000
-TIMEOUT = 1  # in seconds
-devices_found = comports()
-PORT = None
-try:
-	## default use the last port on the list
-	PORT = devices_found[-1].device
-except:
-	pass
+
+N = 16
+UDP = False
 
 IP = "localhost"
 IP_PORT = 8081  ## browser
 # IP_PORT = 23456  ## Nine Keys
-
-
-def enumerate_ports():
-	# 查看可用端口
-	print("All serial ports:")
-	for item in devices_found:
-		print(item)
 
 
 class CursorClient:
@@ -68,7 +55,7 @@ class CursorClient:
 
 	def close(self):
 		self.my_socket.close()
-		print("remote?client socket closed")
+		print("remote client socket closed")
 
 	def send(self, touch_state, x, y):
 		## touch state: 1按下，2按下时移动，3松开，4松开时移动
@@ -147,20 +134,15 @@ class ProcIMU:
 
 	FILENAME_TEMPLATE = "imu_%Y%m%d%H%M%S.csv"
 
-	V0 = 255
-	R0_RECI = 1  ## a constant to multiply the value
-
 	# def __init__(self, measure, flag, port, baudrate, timeout=None, acc=False, gyr=False, needCalibrate=False, my_cursor_client=None):
 	def __init__(self, kwargs):
 		print(kwargs)
 		self.measure = kwargs['measure']
 		self.flag = kwargs['flag']
-		self.port = kwargs['port']
-		self.baudrate = kwargs['baudrate']
-		self.timeout = kwargs['timeout']
 		self.acc = kwargs['acc']
 		self.gyr = kwargs['gyr']
 		self.my_cursor_client = kwargs['client']
+		self.my_client = kwargs['uclient']
 		self.kwargs = kwargs
 
 		## AHRS
@@ -172,12 +154,13 @@ class ProcIMU:
 		self.Q_output = np.array([1., 0., 0., 0.]) # Allocate for quaternions
 
 		## store data
-		self.data_pressure = np.zeros(256, dtype=float)
+		# self.data_pressure = np.zeros(256, dtype=float)
 		self.data_imu = np.zeros(6, dtype=float)
 		self.frame_size = 256+12
 
 		## check fps
 		self.frame_idx = 0
+		self.frame_idx_prev = 0
 		self.last_frame_idx = 0
 		self.cur_time = time.time()
 		self.last_time = self.cur_time
@@ -210,6 +193,7 @@ class ProcIMU:
 		self.G_threshold = 0.1
 		if not self.needCalibrate:
 			self.loadM()
+
 	def loadM(self):
 		p = pathlib.Path('.') / 'M_value.txt'
 		if not p.exists():
@@ -249,10 +233,11 @@ class ProcIMU:
 		axis = np.cross(gReal, gCur)
 		axis = axis / np.linalg.norm(axis)
 		return (np.cos(angle / 2), axis[0]*np.sin(angle / 2), axis[1] * np.sin(angle / 2), axis[2] * np.sin(angle / 2))
+
 	def run(self):
 		## serial
-		self.my_serial = Serial(self.port, self.baudrate, timeout=self.timeout)
-		print(self.my_serial)
+		# self.my_serial = Serial(self.port, self.baudrate, timeout=self.timeout)
+		# print(self.my_serial)
 
 		if self.kwargs['imu_calibrate']:
 			with open('imu_calibration_data.txt', 'w') as f:
@@ -333,7 +318,7 @@ class ProcIMU:
 					x = np.degrees(np.arctan2(-pos[2], pos[0]))
 					y = np.degrees(np.arcsin(pos[1]))
 
-					value = np.sum(self.data_pressure.reshape(16,-1)[:,2:4])
+					value = np.sum(self.data_pressure[:,2:4])
 					r32 = headRot[2][1]
 					r33 = headRot[2][2]
 					r31 = headRot[2][0]
@@ -477,8 +462,8 @@ class ProcIMU:
 
 	def runn(self):
 		## serial
-		self.my_serial = Serial(self.port, self.baudrate, timeout=self.timeout)
-		print(self.my_serial)
+		# self.my_serial = Serial(self.port, self.baudrate, timeout=self.timeout)
+		# print(self.my_serial)
 
 		# self.cali()
 		# print(*self.rotation.inverse)
@@ -560,7 +545,7 @@ class ProcIMU:
 				# self.measure[0] = y
 				# self.measure[1] = x
 
-				value = np.sum(self.data_pressure.reshape(16,-1)[:,2:4])
+				value = np.sum(self.data_pressure[:,2:4])
 				# value = np.mean(self.data_pressure)
 				if not self.calibrating:
 					print(f'value:{value}')
@@ -602,7 +587,7 @@ class ProcIMU:
 					self.last_time = self.cur_time
 					self.last_frame_idx = self.frame_idx
 
-		self.my_serial.close()
+		# self.my_serial.close()
 	
 
 	def send_nine_swn(self, x, y, value, delta):
@@ -725,61 +710,13 @@ class ProcIMU:
 				self.last_y += dy
 				self.my_cursor_client.send(2 if self.inputting else 4, self.last_x, self.last_y)
 
-
-	def read_byte(self):
-		recv = self.my_serial.read()
-		if len(recv) != 1:
-			raise Exception("Serial timeout!")
-		return recv[0]
-
-	@staticmethod
-	def calReci_numpy_array(np_array, v0, r0_reci):
-		np_array[np_array >= v0] = 0
-		np_array /= (v0 - np_array)
-		np_array *= r0_reci
-
 	def put_frame(self):
-		## protocol ref: https://blog.csdn.net/weixin_43277501/article/details/104805286
-		frame = bytearray()
-		begin = False
-		while True:
-			recv = self.read_byte()
-			if begin:
-				if recv == 0x5C:
-					## escape bytes
-					recv = self.read_byte()
-					if recv == 0x00:
-						frame.append(0x5C)
-					elif recv == 0x01:
-						frame.append(0x5B)
-					elif recv == 0x02:
-						frame.append(0x5D)
-					# else:
-						# print(f"Wrong ESCAPE byte: {recv}")
-				elif recv == 0x5D:
-					## end a frame
-					if len(frame) != self.frame_size:
-						## wrong length, re-fetch a frame
-						# print(f"Wrong frame size: {len(frame)}")
-						frame = bytearray()
-						begin = False
-					else:
-						self.data_pressure[:256] = frame[:256]
-						if self.data_imu is not None:
-							pos = 256
-							for i in range(6):
-								self.data_imu[i] = unpack_from(f"=h", frame, pos)[0]
-								pos += calcsize(f"=h")
-						self.cur_time = time.time()
-						self.frame_idx += 1
-						break
-				else:
-					frame.append(recv)
-			elif recv == 0x5B:
-				## begin a frame
-				begin = True
+		self.data_imu, self.frame_idx = self.my_client.fetch_imu_and_index()
+		while self.frame_idx == self.frame_idx_prev:
+			self.data_imu, self.frame_idx = self.my_client.fetch_imu_and_index()
+		self.data_pressure = self.my_client.fetch_frame()
+		self.frame_idx_prev = self.frame_idx
 
-		self.calReci_numpy_array(self.data_pressure, self.V0, self.R0_RECI)
 		self.data_imu[:3] *= UNIT_ACC
 		self.data_imu[3:] *= UNIT_GYR_RAD
 
@@ -842,23 +779,24 @@ class ProcIMU:
 		self.rotation = Quaternion(w, *axis).normalised
 
 
-
-# def task_serial(measure, flag, port, baudrate, timeout=None, acc=False, gyr=False, needCalibrate=False, ip=IP, ip_port=IP_PORT):
-# 	with CursorClient(ip, ip_port) as my_cursor_client:
-# 		my_proc = ProcIMU(measure, flag, port, baudrate, timeout, acc, gyr, needCalibrate, my_cursor_client)
-# 		my_proc.run()
-
-def task_serial(measure, flag, args):
+def task_data(measure, flag, args, config):
 	kwargs = vars(args)
 	kwargs['ip'] = IP
 	kwargs['ip_port'] = IP_PORT
 	kwargs['measure'] = measure
 	kwargs['flag'] = flag
 
-	with CursorClient(kwargs['ip'], kwargs['ip_port']) as my_cursor_client:
-		kwargs['client'] = my_cursor_client
-		my_proc = ProcIMU(kwargs)
-		my_proc.run()
+	with Uclient(
+		config['connection']['client_address'], 
+		config['connection']['server_address'], 
+		udp=config['connection']['udp'], 
+		n=config['sensor']['shape']
+	) as my_client:
+		with CursorClient(kwargs['ip'], kwargs['ip_port']) as my_cursor_client:
+			kwargs['client'] = my_cursor_client
+			kwargs['uclient'] = my_client
+			my_proc = ProcIMU(kwargs)
+			my_proc.run()
 
 def task_debug(measure, flag):
 	import random
@@ -867,10 +805,27 @@ def task_debug(measure, flag):
 		measure[1] = random.random()
 		measure[2] = random.random()
 
+def prepare_config(args):
+	## load config and combine commandline arguments
+	if args.config:
+		config = load_config(args.config)
+	else:
+		config = blank_config()
+	## priority: commandline arguments > config file > program defaults
+	if config['sensor']['shape'] is None or hasattr(args, 'n'+DEST_SUFFIX):
+		config['sensor']['shape'] = args.n
+	if config['connection']['udp'] is None or hasattr(args, 'udp'+DEST_SUFFIX):
+		config['connection']['udp'] = args.udp
+	if config['connection']['server_address'] is None or hasattr(args, 'server_address'+DEST_SUFFIX):
+		config['connection']['server_address'] = args.server_address
+	if config['connection']['client_address'] is None or hasattr(args, 'client_address'+DEST_SUFFIX):
+		config['connection']['client_address'] = args.client_address
+	check_config(config)
+
+	return config
+
 def main(args):
-	if args.enumerate:
-		enumerate_ports()
-		return
+	config = prepare_config(args)
 
 	# measure = Value('d')  # d for double
 	measure = Array('d', 3)  # d for double
@@ -882,9 +837,9 @@ def main(args):
 			yield measure
 
 	if not args.debug:
-		# p = Process(target=task_serial, args=(measure, flag, args.port, 
+		# p = Process(target=task_data, args=(measure, flag, args.port, 
 		# 							args.baudrate, args.timeout, args.acc, args.gyr, args.calibrate))
-		p = Process(target=task_serial, args=(measure, flag, args))
+		p = Process(target=task_data, args=(measure, flag, args, config))
 	else:
 		p = Process(target=task_debug, args=(measure,flag,))
 	p.start()
@@ -911,10 +866,13 @@ def main(args):
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-	parser.add_argument('-e', dest='enumerate', action=('store_true'), default=False, help="enumerate all serial ports")
-	parser.add_argument('-p', dest='port', action=('store'), default=PORT, help="specify serial port")
-	parser.add_argument('-b', dest='baudrate', action=('store'), default=BAUDRATE, type=int, help="specify baudrate")
-	parser.add_argument('-t', dest='timeout', action=('store'), default=TIMEOUT, type=float, help="specify timeout in seconds")
+	parser.add_argument('--server_address', dest='server_address', action=('store'), help="specify server socket address")
+	parser.add_argument('--client_address', dest='client_address', action=('store'), help="specify client socket address")
+	parser.add_argument('-u', '--udp', dest='udp', action=('store_true'), default=UDP, help="use UDP protocol")
+	parser.add_argument('-n', dest='n', action=('store'), default=[N], type=int, nargs='+', help="specify sensor shape")
+
+	parser.add_argument('--config', dest='config', action=('store'), default=None, help="specify configuration file")
+
 	parser.add_argument('-d', '--debug', dest='debug', action=('store_true'), default=False, help="debug mode")
 	parser.add_argument('-g', '--gyr', dest='gyr', action=('store_true'), default=False, help="show gyroscope data")
 	parser.add_argument('-a', '--acc', dest='acc', action=('store_true'), default=False, help="show accelerometer data")

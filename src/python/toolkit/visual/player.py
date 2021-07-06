@@ -29,6 +29,7 @@ class Player:
 	backend = "None (should be altered by subclass)"  # backend used for visualization
 
 	def __init__(self, *args, **kwargs):
+		super().__init__()
 		## variables for interactive playing
 		self.cur_idx = 0  # current data slice index
 		self.max_idx = 0  # max data slice index

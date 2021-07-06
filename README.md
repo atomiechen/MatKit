@@ -118,16 +118,18 @@ UNIX domain socket通信地址：`/var/tmp/unix.socket.server`
 
 通信API：
 
-| 简称     | 请求内容   | 值            | 请求格式         | 返回内容             | 返回格式         |
-| -------- | ---------- | ------------- | ---------------- | -------------------- | ---------------- |
-| CLOSE    | 关闭服务   | 0             | 1byte            | 操作状态             | 1byte            |
-| DATA     | 获取处理帧 | 1             | 1byte            | 帧数据+帧号          | 256double+1int   |
-| RAW      | 获取原始帧 | 2             | 1byte            | 帧数据+帧号          | 256double+1int   |
-| REC_DATA | 存储处理帧 | 3(+filename)  | 1byte+string     | 操作状态+文件名      | 1byte+string     |
-| REC_RAW  | 存储原始帧 | 4(+filename)  | 1byte+string     | 操作状态+文件名      | 1byte+string     |
-| REC_STOP | 停止存储   | 5             | 1byte            | 操作状态             | 1byte            |
-| RESTART  | 重启服务   | 6+i+w+f(+...) | 1byte+3int(+...) | 操作状态+i+w+f(+...) | 1byte+3int(+...) |
-| PARAS    | 获取参数   | 7             | 1byte            | 操作状态+i+w+f(+...) | 1byte+3int(+...) |
+| 简称      | 请求内容    | 值            | 请求格式         | 返回内容             | 返回格式         |
+| --------- | ----------- | ------------- | ---------------- | -------------------- | ---------------- |
+| CLOSE     | 关闭服务    | 0             | 1byte            | 操作状态             | 1byte            |
+| DATA      | 获取处理帧  | 1             | 1byte            | 帧数据+帧号          | 256double+1int   |
+| RAW       | 获取原始帧  | 2             | 1byte            | 帧数据+帧号          | 256double+1int   |
+| REC_DATA  | 存储处理帧  | 3(+filename)  | 1byte+string     | 操作状态+文件名      | 1byte+string     |
+| REC_RAW   | 存储原始帧  | 4(+filename)  | 1byte+string     | 操作状态+文件名      | 1byte+string     |
+| REC_STOP  | 停止存储    | 5             | 1byte            | 操作状态             | 1byte            |
+| RESTART   | 重启服务    | 6+i+w+f(+...) | 1byte+3int(+...) | 操作状态+i+w+f(+...) | 1byte+3int(+...) |
+| PARAS     | 获取参数    | 7             | 1byte            | 操作状态+i+w+f(+...) | 1byte+3int(+...) |
+| REC_BREAK |             | 8             |                  |                      |                  |
+| DATA_IMU  | 获取IMU数据 | 9             | 1byte            | IMU数据+帧号         | 6double+1int     |
 
 - 操作状态为1byte，0表示成功，255表示失败
 - filename文件名为空时，默认输出到可执行文件路径下的`output.csv`中
@@ -507,5 +509,4 @@ optional arguments:
 默认采用英文逗号`,`分隔的CSV文本文件存储数据。每帧数据占据一行，每行的内容依次是：按顺序N*N个压力值，帧号（从运行时第一帧0算起），时间戳（从UNIX Epoch算起的时间长度，以微秒即10e-6秒为单位）。
 
 可能采集的数据类型包括：处理后数据，原始数据。
-
 
