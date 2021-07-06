@@ -77,6 +77,10 @@ def check_config(config):
 		# ## dangerous to use 'eval'
 		# config['process']['V0'] = eval(config['process']['V0'])
 
+	## some modifications
+	if config['process']['interp'] is None:
+		config['process']['interp'] = copy.deepcopy(config['sensor']['shape'])
+
 
 def load_config(filename):
 	with open(filename) as fin:
