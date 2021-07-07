@@ -160,7 +160,6 @@ class ProcIMU:
 
 		## check fps
 		self.frame_idx = 0
-		self.frame_idx_prev = 0
 		self.last_frame_idx = 0
 		self.cur_time = time.time()
 		self.last_time = self.cur_time
@@ -711,11 +710,8 @@ class ProcIMU:
 				self.my_cursor_client.send(2 if self.inputting else 4, self.last_x, self.last_y)
 
 	def put_frame(self):
-		self.data_imu, self.frame_idx = self.my_client.fetch_imu_and_index()
-		while self.frame_idx == self.frame_idx_prev:
-			self.data_imu, self.frame_idx = self.my_client.fetch_imu_and_index()
+		self.data_imu, self.frame_idx = self.my_client.fetch_imu_and_index(new=True)  ## get a new IMU frame
 		self.data_pressure = self.my_client.fetch_frame()
-		self.frame_idx_prev = self.frame_idx
 
 		self.data_imu[:3] *= UNIT_ACC
 		self.data_imu[3:] *= UNIT_GYR_RAD
