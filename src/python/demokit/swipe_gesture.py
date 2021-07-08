@@ -24,7 +24,7 @@ class SwipeGestureClassifier:
 	PRESS_TIME = 3  ## long press duration in seconds
 	MIN_INTERVAL = 0.1  ## minimum gesture interval
 
-	def __init__(self, debug=False):
+	def __init__(self, debug=False, safe_check=True):
 		self.in_gesture = False
 		self.point_x = []
 		self.point_y = []
@@ -38,6 +38,15 @@ class SwipeGestureClassifier:
 		self.template_vert[1] = np.linspace(0, 1, self.INTERP_NUM)
 
 		self.debug = debug
+		self.safe_check = safe_check
+
+		if not self.safe_check:
+			self.MIN_INTERVAL = 0
+			self.START_BORDER = 1
+			self.TH_SWIPE = 10
+			self.TH_CLICK = 1
+
+			# self.TH_CLICK = 0.05
 
 	def check(self):
 		ret = SwipeGesture.NONE
@@ -45,6 +54,8 @@ class SwipeGestureClassifier:
 		duration = self.cur_time - self.start_time
 		if duration >= self.PRESS_TIME:
 			ret = SwipeGesture.PRESS
+			if self.debug:
+				print(f"press time: {duration}")
 			return ret
 
 		x_dis = self.point_x[-1] - self.point_x[0]
@@ -52,6 +63,8 @@ class SwipeGestureClassifier:
 		displacement = (x_dis**2+y_dis**2)**0.5
 		if displacement <= self.TH_CLICK:
 			ret = SwipeGesture.CLICK
+			if self.debug:
+				print(f"click displacement: {displacement}")
 			return ret
 
 		## !!! Note: splprep cannot handle < successive identical points >

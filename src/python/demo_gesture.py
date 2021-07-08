@@ -28,6 +28,11 @@ def main():
 	else:
 		config = blank_config()
 
+	if args.no_safe_check:
+		config['process']['threshold'] = 0.1
+		config['process']['special'] = False
+		config['pointing']['alpha'] = 1
+
 	my_processor = Processor(
 		config['process']['interp'], 
 		blob=config['process']['blob'], 
@@ -44,13 +49,15 @@ def main():
 	)
 	my_cursor.print_info()
 
+	cnt = 0
+
 	with Uclient(
 		config['connection']['client_address'], 
 		config['connection']['server_address'], 
 		udp=config['connection']['udp'], 
 		n=config['sensor']['shape']
 	) as my_client:
-		my_classifier = SwipeGestureClassifier(debug=args.debug)
+		my_classifier = SwipeGestureClassifier(debug=args.debug, safe_check=not args.no_safe_check)
 		frame_idx = 0
 		while True:
 			## get a new frame
@@ -62,13 +69,16 @@ def main():
 
 			gesture = my_classifier.classify(x, y, moving)
 			if gesture != SwipeGesture.NONE:
+				cnt += 1
 				print(f"gesture: {gesture.name}")
+				print(f"触发次数：{cnt}")
 
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 	parser.add_argument('--config', dest='config', action='store', default=CONFIG_PATH, help="specify configuration file")
 	parser.add_argument('--debug', dest='debug', action='store_true', default=False, help="debug mode")
+	parser.add_argument('--no_safe_check', dest='no_safe_check', action='store_true', default=False, help="disable safe check")
 	args = parser.parse_args()
 
 	main()
