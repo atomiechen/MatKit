@@ -1,11 +1,13 @@
 import argparse
 import time
 from datetime import datetime
-from socket import socket, AF_INET, SOCK_STREAM, timeout
 
 from toolkit.uclient import Uclient
 from toolkit.process import Processor, CursorController, PressureSelector
 from toolkit import filemanager
+
+from demokit.cursor_client import CursorClient
+
 
 N = 16
 INTERP = 64
@@ -37,33 +39,6 @@ filename = PATH_OUTFILE.format(timestamp)
 
 def get_timestamp():
 	return datetime.now().strftime(FORMAT_TIMESTAMP)
-
-
-class CursorClient:
-	def __init__(self, server_addr, port, timeout=1):
-		self.my_socket = socket(AF_INET, SOCK_STREAM)
-		self.my_socket.settimeout(timeout)
-		self.connect(server_addr, port)
-
-	def __enter__(self):
-		return self
-
-	def __exit__(self, type, value, traceback):
-		self.close()
-
-	def connect(self, address, port):
-		self.my_socket.connect((address, port))
-		print(f"client connecting to server: {address}")
-
-	def close(self):
-		self.my_socket.close()
-		print("remote client socket closed")
-
-	def send(self, touch_state, x, y):
-		## touch state: 1按下，2按下时移动，3松开，4松开时移动
-		paras = [touch_state, x, y]
-		self.my_socket.send((" ".join([str(item) for item in paras])+"\n").encode())
-
 
 def mapping(x, y, left=0.1, right=0.9, up=0.1, down=0.9):
 	x0 = 1-y

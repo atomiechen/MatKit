@@ -109,3 +109,5 @@ visual:
   fps: ~
   ## scatter plot: false
   scatter: ~
+  ## show text value: false
+  show_value: ~
