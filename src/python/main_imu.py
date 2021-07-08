@@ -60,7 +60,7 @@ class CursorClient:
 	def send(self, touch_state, x, y):
 		## touch state: 1按下，2按下时移动，3松开，4松开时移动
 		paras = [touch_state, x, y]
-		print(f"[send]: {paras}")
+		# print(f"[send]: {paras}")
 		self.my_socket.send((" ".join([str(item) for item in paras])+"\n").encode())
 
 	def sendButton(self, cmd):
@@ -176,8 +176,8 @@ class ProcIMU:
 		self.last_x = 0.5
 		self.last_y = 0.5
 		# print(self.h_vec, self.v_vec)
-		self.smoothX = Smooth()
-		self.smoothY = Smooth()
+		self.smoothX = AverageSmooth()
+		self.smoothY = AverageSmooth()
 		self.inputting = False
 		# self.std_Q = (0.48688449,-0.28526537,0.82494558,0.03212407)
 		# self.rotQ = (quat_to_mat(self.std_Q)).I
@@ -190,8 +190,22 @@ class ProcIMU:
 		self.running = False
 		self.G_ref = 9.801
 		self.G_threshold = 0.1
+		self.x_bot = 20
+		self.x_top = 0
+		self.y_bot = -120
+		self.y_top = -130
 		if not self.needCalibrate:
 			self.loadM()
+		if self.kwargs['imu_calibrate']:
+			self.calibrateCenter = [0, 0, 0]
+			self.calibrateScale = [9.801, 9.801, 9.801]
+		else:
+			#CWH data
+			self.calibrateCenter = [-0.085487926459334, -0.038224993082962,0.556024530070166]
+			self.calibrateScale = [9.870533168553060, 9.832376613350656, 9.743367778916230]
+			#SWN data
+			# self.calibrateCenter = [ 0.00987332, -0.01452841, 0.19158983] 
+			# self.calibrateScale = [9.81646455236567, 9.871776503810343, 9.719935747473379]
 
 	def loadM(self):
 		p = pathlib.Path('.') / 'M_value.txt'
@@ -327,23 +341,39 @@ class ProcIMU:
 					ay = np.degrees(np.arctan2(-r31, np.sqrt(r32*r32+r33*r33)))
 					az = np.degrees(np.arctan2(r21, r11))
 					# print(f'[running] x: {ax}, y: {ay}, z:{az}')
-					print(f'[running] pos: {pos[0]}, {pos[1]}, {pos[2]}')
-					print(f'[running] euler: {ax}, {ay}, {az}')
+					###print(f'[running] pos: {pos[0]}, {pos[1]}, {pos[2]}')
+					###print(f'[running] euler: {ax}, {ay}, {az}')
 					#0:blue 1:orange 2: green
 					# self.measure[:3] = [ax, ay, 0]
 					
 					self.measure[:3] = [ax, ay, az]
 					# self.measure[:3] = self.data_imu[:3]
-					print(f'[running] x: {x}, y: {y}, v: {value}')
+					###print(f'[running] x: {x}, y: {y}, v: {value}')
 					# print(f'[running] x: {ay}, y: {ax}, v:{value}')
-					self.smoothX.update(x)
-					self.smoothY.update(y)
+					self.smoothX.update(az)
+					self.smoothY.update(ax)
 					x = self.smoothX.getData()
 					y = self.smoothY.getData()
-					self.send_swn(az, -1, -30, ax, -110, -130, value)
+					if self.kwargs['inputCommand'].value == 1:
+						self.y_top = y
+						print('y top set!!!')
+						self.kwargs['inputCommand'].value = 0
+					elif self.kwargs['inputCommand'].value == 2:
+						self.y_bot = y
+						print('y bot set!!!')
+						self.kwargs['inputCommand'].value = 0
+					elif self.kwargs['inputCommand'].value == 3:
+						self.x_bot = x
+						print('x bot set!!!')
+						self.kwargs['inputCommand'].value = 0
+					elif self.kwargs['inputCommand'].value == 4:
+						self.x_top = x
+						print('x top set!!!')
+						self.kwargs['inputCommand'].value = 0
+					self.send_swn(x, self.x_bot, self.x_top, y, self.y_bot, self.y_top, value)
 					# self.send_swn(az, y, value)
 	def send_swn(self, anglex, x_bot, x_top, angley, y_bot, y_top, value):
-		threshold = 43
+		threshold = 1.5
 		# x_top = 0.3
 		# x_bot = 0.1
 		# y_top = -2.3	
@@ -451,189 +481,6 @@ class ProcIMU:
 		 
 		# Return a 4 element array containing the final quaternion (q02,q12,q22,q32) 
 		return final_quaternion
-	
-
-
-	
-
-
-
-
-	def runn(self):
-		## serial
-		# self.my_serial = Serial(self.port, self.baudrate, timeout=self.timeout)
-		# print(self.my_serial)
-
-		# self.cali()
-		# print(*self.rotation.inverse)
-		self.rotation = Quaternion(0.7506447624364577,-0.0,-0.12936740371211275,-0.6479170591082638)
-		self.gravityCheck = False
-		self.gLen = 0
-		self.firstPass = False
-		print(f'START CALIBRATE')
-		if self.calibrate:
-			while self.flag.value != 0:
-				self.put_frame()
-				accData = self.data_imu[:3]
-				gyrData = self.data_imu[3:]
-				if not self.gravityCheck:
-					self.checkGravity()
-					print(f'\r[calibrate] Checking Gravity...', end='')
-				else:
-					print(f'[calibrate] Gravity pass!')
-		else:
-		
-
-			print(f"recording to {self.filename}")
-			while self.flag.value != 0:
-				self.put_frame()
-				self.update_quaternion()
-
-				self.visualize()
-
-
-
-				Quat_current = Quaternion(self.Q)
-				# rot_current = self.rotation.inverse*Quat_current
-				rot_current = self.rotation*Quat_current
-				x, y, z = (rot_current).rotate([0, 0, 1])
-				# u = (x+y)/2
-				# v = (x-y)/2
-				# if self.calibrating:
-				# 	print('calibrating Q:', self.Q)
-
-				euler = self.euler_from_quaternion(*self.Q)
-				# x = (- pca_h.transform([euler])[0][0] - 20) / 70
-				# y = ((-pca_v.transform([euler])[0][0] - 20) / 20 + 2 ) / 3
-
-				# x = -pca_h.transform([self.Q])[0][0] 
-				# y = pca_v.transform([self.Q])[0][0]
-				##############new try
-				self.curPos = self.rotQ * quat_to_mat(self.Q)
-				self.curVec = self.curPos * np.matrix([1, 0, 0]).T
-				# print(self.curVec)
-				Xangle = np.degrees(np.arctan(self.curVec[1][0] / self.curVec[0][0]))
-				Yangle = np.degrees(np.arccos(self.curVec[2][0]))
-				if not self.calibrating:
-					print(f'angles: {Xangle}, {Yangle}')
-
-				self.smoothX.update(Xangle.A[0][0])
-				Xangle = self.smoothX.getData()
-				self.smoothY.update(Yangle.A[0][0])
-				Yangle = self.smoothY.getData()
-				if not self.calibrating:
-					print(f'smooth angles: {Xangle}, {Yangle}')
-
-				#calculate alpha and phi
-				##############new try end
-				# print(f':{x}, y:{y}')
-				# print('quad:', self.Q)
-				H = np.sum(np.dot(self.h_vec, np.reshape(quat_to_mat(self.Q), (9, -1))))
-				V = np.sum(np.dot(self.v_vec, np.reshape(quat_to_mat(self.Q), (9, -1))))
-				
-				# print(H.shape)
-				# print('HHHH', H)
-				# print('VVVV', V)
-
-
-				# self.measure[0:3] = self.data_imu[3:] # self.Q[1:4]
-				# self.measure[1] = y
-
-				# v = (v)
-				# x /= 2
-				# self.measure[0] = y
-				# self.measure[1] = x
-
-				value = np.sum(self.data_pressure[:,2:4])
-				# value = np.mean(self.data_pressure)
-				if not self.calibrating:
-					print(f'value:{value}')
-				print('self.measure:', self.measure[:])
-				self.measure[:] = [self.last_x, self.last_y, 0]
-				self.send_swn(Xangle, Yangle, value)
-				# self.send(H, V, value)
-
-	####
-				maxv = np.argmax(np.abs(self.measure))
-				# print(self.measure[:])
-				# if np.abs(self.measure[1]) > 5:
-				# self.measure[0:3] = self.data_imu[3:]
-				dy = -self.measure[1] * (self.cur_time - self.last_time)
-				# else:
-				# 	dy = 0
-				# if np.abs(self.measure[0]) + np.abs(self.measure[2]) > 10:
-				dx = (self.measure[0] + self.measure[2]) * (self.cur_time - self.last_time) / 2
-				# else:
-				# 	dx = 0
-	####
-				# print(Quat_current)
-				
-				
-
-				# self.measure[0:3] = self.Q[1:]
-				# print(value)
-				# self.send(x, y, value, (dx/4 , dy /6))
-				# self.send_nine(dx, -dy, value)
-				# self.send_nine_swn(x, y, value, (dx / 350, dy / 550))
-
-				# filemanager.write_line(self.filename, self.Q, tags=int(self.cur_time*1000000))
-				# filemanager.write_line(self.filename, euler, tags=int(self.cur_time*1000000))
-
-				if self.cur_time - self.last_time >= 1:
-					duration = self.cur_time - self.last_time
-					frames = self.frame_idx - self.last_frame_idx
-					print(f"  frame rate: {frames/duration:.3f} fps")
-					self.last_time = self.cur_time
-					self.last_frame_idx = self.frame_idx
-
-		# self.my_serial.close()
-	
-
-	def send_nine_swn(self, x, y, value, delta):
-		threshold = 1.2
-		dx, dy = delta
-		# print(f'delata:{delta}')
-		self.last_x += dx
-		self.last_y += dy
-
-		if value > threshold:
-			if self.touching:
-				# self.my_cursor_client.send(2, dx, dy)
-				pass
-			else:
-				self.my_cursor_client.send(1, dx, dy)
-				self.last_x = self.last_y = 0.5
-				self.touching = True
-		else:
-			if self.touching:
-				# self.my_cursor_client.send(0, self.last_x, self.last_y)
-				self.touching = False
-			else:
-				self.my_cursor_client.send(0, self.last_x, self.last_y)
-
-
-
-
-	def send_nine(self, dx, dy, value):
-		threshold = 1.5
-		# print(f'dx{dx}, dy{dy}')
-		
-		if value > threshold:
-			if self.touching:
-				# self.my_cursor_client.send(2, dx, dy)
-				pass
-			else:
-				self.my_cursor_client.send(1, dx, dy)
-				self.touching = True
-		else:
-			if abs(dx) < 5 and abs(dy) < 5:
-				return
-			if self.touching:
-				self.my_cursor_client.send(0, dx, dy)
-				self.touching = False
-			else:
-				self.my_cursor_client.send(0, dx, dy)
-
 
 	def send(self, x, y, value):
 		# print('in send', x, y)
@@ -653,61 +500,6 @@ class ProcIMU:
 			else:
 				self.my_cursor_client.send(4, x, y)
 
-	def send(self, x, y, value, delta):
-		threshold = 40
-		dx, dy = delta
-		# print(f'delata:{delta}')
-		# self.last_x += dx
-		# self.last_y += dy
-		# x = self.last_x - 0.5
-		# y = self.last_y - 0.5
-		# if np.sqrt(x*x + y*y) < 0.1:
-		# 	pos = 4
-		# else:
-		# 	angle = np.arctan2(y, x)
-		# 	pos = int('52103678'[int((angle + np.pi / 8) *4 // np.pi)])
-		# cmds = ['up left', 'up', 'up right', 'left', '', 'right', 'down left', 'down', 'down right']
-		# for cmd in cmds[pos].split(' '):
-		# 	self.my_remote_handle.sendButton(cmd)
-		# # elif pos in []
-		# if value > threshold:
-		# 	if not self.touching:
-		# 		self.my_cursor_client.send(pos, self.last_x, self.last_y)
-		# 		self.touching = True
-		# 		self.last_x = self.last_y = 0.5
-		# else:
-		# 	if self.touching:
-		# 		self.touching = False
-		if value > threshold + 30:
-			self.last_x = 0.5
-			self.last_y = 0.5
-		if value > threshold:
-			if self.touching:
-				self.last_x += dx
-				self.last_y += dy
-				# self.my_cursor_client.send(2, self.last_x, self.last_y)
-			else:
-				# self.last_x = 0.5
-				# self.last_y = 0.5
-				self.last_x += dx
-				self.last_y += dy
-				# self.my_cursor_client.send(1,self.last_x, self.last_y)
-				self.touching = True
-		else:
-			if self.touching:
-				self.last_x += dx
-				self.last_y += dy
-				# self.my_cursor_client.send(3, self.last_x, self.last_y)
-				self.touching = False
-				self.inputting = not self.inputting
-				if not self.inputting:
-					self.my_cursor_client.send(3, self.last_x, self.last_y)
-				else:
-					self.my_cursor_client.send(1,self.last_x, self.last_y)
-			else:
-				self.last_x += dx
-				self.last_y += dy
-				self.my_cursor_client.send(2 if self.inputting else 4, self.last_x, self.last_y)
 
 	def put_frame(self):
 		self.data_imu, self.frame_idx = self.my_client.fetch_imu_and_index(new=True)  ## get a new IMU frame
@@ -716,13 +508,14 @@ class ProcIMU:
 		self.data_imu[:3] *= UNIT_ACC
 		self.data_imu[3:] *= UNIT_GYR_RAD
 
-		self.data_imu[0] -= -0.085487926459334
-		self.data_imu[1] -= -0.038224993082962
-		self.data_imu[2] -= 0.556024530070166
 
-		self.data_imu[0] /= (9.870533168553060 / 9.801)
-		self.data_imu[1] /= (9.832376613350656 / 9.801)
-		self.data_imu[2] /= (9.743367778916230 / 9.801)
+		self.data_imu[0] -= self.calibrateCenter[0]
+		self.data_imu[1] -= self.calibrateCenter[1]
+		self.data_imu[2] -= self.calibrateCenter[2]
+
+		self.data_imu[0] /= (self.calibrateScale[0] / 9.801)
+		self.data_imu[1] /= (self.calibrateScale[1] / 9.801)
+		self.data_imu[2] /= (self.calibrateScale[2] / 9.801)
 
 	def visualize(self):
 		## visualize data
@@ -776,7 +569,7 @@ class ProcIMU:
 
 
 def task_data(measure, flag, args, config):
-	kwargs = vars(args)
+	kwargs = args
 	kwargs['ip'] = IP
 	kwargs['ip_port'] = IP_PORT
 	kwargs['measure'] = measure
@@ -820,6 +613,18 @@ def prepare_config(args):
 
 	return config
 
+def task_visual(flag, args):
+	def gen_wrapper():
+		while True:
+			yield args['measure']
+	ytop = None
+	ybottom = None
+	my_player = Player1D(generator=gen_wrapper(), channels=3, timespan=5, 
+							ytop=ytop, ybottom=ybottom, exit_flag=flag)
+	my_player.run_stream()
+	flag.value = 0
+	
+
 def main(args):
 	config = prepare_config(args)
 
@@ -827,37 +632,53 @@ def main(args):
 	measure = Array('d', 3)  # d for double
 	flag = Value('i')  # i for int
 	flag.value = 1
+	inputCommand = Value('i')
+	inputCommand.value = 0
+	kwargs = vars(args)
+	kwargs['inputCommand'] = inputCommand
+	kwargs['measure'] = measure
 
-	def gen_wrapper():
-		while True:
-			yield measure
+	
 
 	if not args.debug:
 		# p = Process(target=task_data, args=(measure, flag, args.port, 
 		# 							args.baudrate, args.timeout, args.acc, args.gyr, args.calibrate))
-		p = Process(target=task_data, args=(measure, flag, args, config))
+		p = Process(target=task_data, args=(measure, flag, kwargs, config))
 	else:
 		p = Process(target=task_debug, args=(measure,flag,))
 	p.start()
 
-	ytop = None
-	ybottom = None
+	
+	if not (args.calibrate or args.imu_calibrate):
+		pVisual = Process(target = task_visual, args=(flag, kwargs))
+		pVisual.start()
+	
 	# if args.acc:
 	# 	ytop = MAX_ACC
 	# 	ybottom = -MAX_ACC
 	# elif args.gyr:
 	# 	ytop = MAX_GYR
 	# 	ybottom = -MAX_GYR
-	if not (args.calibrate or args.imu_calibrate):
-		my_player = Player1D(generator=gen_wrapper(), channels=3, timespan=5, 
-							ytop=ytop, ybottom=ybottom)
-		my_player.run_stream()
-
-		flag.value = 0
-	else:
-		p = input()
-		flag.value = 0
+	while flag.value != 0:
+		key = input('Waiting for command__')
+		if key == 'w':
+			inputCommand.value = 1
+		elif key == 's':
+			inputCommand.value = 2
+		elif key == 'a':
+			inputCommand.value = 3
+		elif key == 'd':
+			inputCommand.value = 4
+		elif key == 'q':
+			flag.value = 0
+	
+	
+	# else:
+	# 	q = input('wating for exit....')
+	# 	flag.value = 0
 	p.join()
+	if not (args.calibrate or args.imu_calibrate):
+		pVisual.join()
 
 
 if __name__ == '__main__':

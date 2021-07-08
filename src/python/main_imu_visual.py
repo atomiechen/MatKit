@@ -207,9 +207,17 @@ class ProcIMU:
 		self.gravityData = []
 		self.running = False
 		self.G_ref = 9.801
-		self.G_threshold = 0.1
+		self.G_threshold = 0.2
 		if not self.needCalibrate:
 			self.loadM()
+		
+		if self.kwargs['imu_calibrate']:
+			self.calibrateCenter = [0, 0, 0]
+			self.calibrateScale = [9.801, 9.801, 9.801]
+		else:
+			#SWN data
+			self.calibrateCenter = [0.08951979, 0.01388983, -0.35675075]
+			self.calibrateScale = [9.739369737559112, 9.83590026045563, 9.787575146542418]
 	def loadM(self):
 		p = pathlib.Path('.') / 'M_value.txt'
 		if not p.exists():
@@ -783,13 +791,21 @@ class ProcIMU:
 		self.data_imu[:3] *= UNIT_ACC
 		self.data_imu[3:] *= UNIT_GYR_RAD
 
-		self.data_imu[0] -= -0.085487926459334
-		self.data_imu[1] -= -0.038224993082962
-		self.data_imu[2] -= 0.556024530070166
+		self.data_imu[0] -= self.calibrateCenter[0]
+		self.data_imu[1] -= self.calibrateCenter[1]
+		self.data_imu[2] -= self.calibrateCenter[2]
 
-		self.data_imu[0] /= (9.870533168553060 / 9.801)
-		self.data_imu[1] /= (9.832376613350656 / 9.801)
-		self.data_imu[2] /= (9.743367778916230 / 9.801)
+		self.data_imu[0] /= (self.calibrateScale[0] / 9.801)
+		self.data_imu[1] /= (self.calibrateScale[1] / 9.801)
+		self.data_imu[2] /= (self.calibrateScale[2] / 9.801)
+
+		# self.data_imu[0] -= -0.085487926459334
+		# self.data_imu[1] -= -0.038224993082962
+		# self.data_imu[2] -= 0.556024530070166
+
+		# self.data_imu[0] /= (9.870533168553060 / 9.801)
+		# self.data_imu[1] /= (9.832376613350656 / 9.801)
+		# self.data_imu[2] /= (9.743367778916230 / 9.801)
 
 	def visualize(self):
 		## visualize data

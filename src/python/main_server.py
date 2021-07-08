@@ -40,6 +40,9 @@ DEBUG = False
 OUTPUT_FILENAME_TEMPLATE = "processed_%Y%m%d%H%M%S.csv"
 OUTPUT_FILENAME = datetime.now().strftime(OUTPUT_FILENAME_TEMPLATE)
 
+INTERMEDIATE = 0
+
+
 def enumerate_ports():
 	# 查看可用端口
 	print("All serial ports:")
@@ -83,6 +86,7 @@ def task_serial(paras):
 			pipe_conn=paras['pipe_proc'],
 			copy_tags=False,
 			imu=paras['config']['serial']['imu'],
+			intermediate=paras['config']['process']['intermediate']
 		)
 		my_proc.run()
 	except KeyboardInterrupt:
@@ -194,6 +198,8 @@ def prepare_config(args):
 		config['server_mode']['enumerate'] = args.enumerate
 	if config['serial']['imu'] is None or hasattr(args, 'imu'+DEST_SUFFIX):
 		config['serial']['imu'] = args.imu
+	if config['process']['intermediate'] is None or hasattr(args, 'intermediate'+DEST_SUFFIX):
+		config['process']['intermediate'] = args.intermediate
 	check_config(config)
 	return config
 
@@ -295,6 +301,7 @@ if __name__ == '__main__':
 	parser.add_argument('-i', '--imu', dest='imu', action=make_action('store_true'), default=False, help="support IMU")
 
 	parser.add_argument('--scatter', dest='scatter', action=make_action('store_true'), default=False, help="show scatter plot")
+	parser.add_argument('--intermediate', dest='intermediate', action=make_action('store'), default=INTERMEDIATE, type=int, help="specify intermediate result")
 
 	args = parser.parse_args()
 
