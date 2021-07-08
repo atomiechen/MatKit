@@ -1,7 +1,6 @@
 import argparse
 import time
 from datetime import datetime
-from socket import socket, AF_INET, SOCK_STREAM, timeout
 
 from toolkit.uclient import Uclient
 from toolkit.process import Processor, CursorController, PressureSelector
