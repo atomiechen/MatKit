@@ -99,7 +99,7 @@ def main():
 						my_remote_handle.sendButton('right')
 					elif gesture == SwipeGesture.CLICK:
 						my_remote_handle.sendButton('click')
-					elif gesture == swipe_gesture.PRESS:
+					elif gesture == SwipeGesture.PRESS:
 						if mode == 0:
 							print("进入文本打字模式")
 							mode = 1
