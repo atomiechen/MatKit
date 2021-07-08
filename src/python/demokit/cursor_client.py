@@ -50,6 +50,7 @@ class CursorClient:
 
 	@auto_reconnect()
 	def send(self, touch_state, x, y):
+		## touch state: 1按下，2按下时移动，3松开，4松开时移动
 		paras = [touch_state, x, y]
 		self.my_socket.send(str(" ".join([str(item) for item in paras]) + "\n").encode())
 	
