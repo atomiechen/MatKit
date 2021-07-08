@@ -194,6 +194,8 @@ class ProcIMU:
 		self.x_top = 0
 		self.y_bot = -120
 		self.y_top = -130
+		self.pressure_threshold = 1.2
+		self.click_threshold = 5
 		if not self.needCalibrate:
 			self.loadM()
 		if self.kwargs['imu_calibrate']:
@@ -204,11 +206,14 @@ class ProcIMU:
 			self.calibrateCenter = [-0.085487926459334, -0.038224993082962,0.556024530070166]
 			self.calibrateScale = [9.870533168553060, 9.832376613350656, 9.743367778916230]
 			#SWN data
-			# self.calibrateCenter = [ 0.00987332, -0.01452841, 0.19158983] 
-			# self.calibrateScale = [9.81646455236567, 9.871776503810343, 9.719935747473379]
+			self.calibrateCenter = [ 0.00987332, -0.01452841, 0.19158983] 
+			self.calibrateScale = [9.81646455236567, 9.871776503810343, 9.719935747473379]
 			#SWN data2
-			self.calibrateCenter = [0.04218729, 0.08655178, -0.24946698]
-			self.calibrateScale = [9.89370337798936, 9.852362167496885, 9.738741250318913]
+			# self.calibrateCenter = [0.04218729, 0.08655178, -0.24946698]
+			# self.calibrateScale = [9.89370337798936, 9.852362167496885, 9.738741250318913]
+			# #SWN data3
+			# self.calibrateCenter = [-0.07968226, 0.01155016, 0.07111075]
+			# self.calibrateScale = [9.791473022742816, 9.755175219164151, 9.765819348983804]
 
 	def loadM(self):
 		p = pathlib.Path('.') / 'M_value.txt'
@@ -350,6 +355,7 @@ class ProcIMU:
 					# self.measure[:3] = [ax, ay, 0]
 					
 					self.measure[:3] = [az, ax, value]
+					# self.measure[:3] = self.Q[1:]
 					# self.measure[:3] = self.data_imu[:3]
 					###print(f'[running] x: {x}, y: {y}, v: {value}')
 					# print(f'[running] x: {ay}, y: {ax}, v:{value}')
@@ -373,14 +379,25 @@ class ProcIMU:
 						self.x_top = x
 						print('x top set!!!')
 						self.kwargs['inputCommand'].value = 0
+					elif self.kwargs['inputCommand'].value == 5:
+						self.pressure_threshold = value + 0.3
+						print('value set!!!!')
+						self.kwargs['inputCommand'].value = 0
+					elif self.kwargs['inputCommand'].value == 6:
+						self.click_threshold = value
+						print('click value set!!!')
+						self.kwargs['inputCommand'].value = 0
 					self.send_swn(x, self.x_bot, self.x_top, y, self.y_bot, self.y_top, value)
 					# self.send_swn(az, y, value)
 	def send_swn(self, anglex, x_bot, x_top, angley, y_bot, y_top, value):
-		threshold = 1.5
+		threshold = self.pressure_threshold
 		# x_top = 0.3
 		# x_bot = 0.1
 		# y_top = -2.3	
 		# y_bot = -2.13
+		# if value > self.click_threshold:
+		# 	self.my_cursor_client.sendButton('click')
+		# 	return
 
 		x = (anglex - x_bot) / (x_top - x_bot)
 		y = (y_top - angley) / (y_top - y_bot)
@@ -672,6 +689,10 @@ def main(args):
 			inputCommand.value = 3
 		elif key == 'd':
 			inputCommand.value = 4
+		elif key == 'v':
+			inputCommand.value = 5
+		elif key == 'x':
+			inputCommand.value = 6
 		elif key == 'q':
 			flag.value = 0
 	
