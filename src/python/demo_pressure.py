@@ -5,6 +5,7 @@ from enum import Enum, IntEnum
 import numpy as np
 
 from socket import socket, AF_INET, SOCK_STREAM, timeout
+import time
 
 from toolkit.uclient import Uclient
 from toolkit.process import Processor, CursorController
@@ -17,40 +18,67 @@ IP = "localhost"
 PORT = 8081
 
 
+def auto_reconnect(wait_time=1):
+	def decorator(func):
+		def wrapper(self, *args, **kwargs):
+			try:
+				return func(self, *args, **kwargs)
+			except Exception as e:
+				print(f"Remote server no respond. Reconnecting...")
+
+			while True:
+				try:
+					self.connect()
+					return
+				except Exception as e:
+					print(f"Sleep {wait_time}s to retry...")
+					time.sleep(wait_time)
+		return wrapper
+	return decorator
+
 class CursorClient:
-    def __init__(self, server_addr, port, timeout=1):
-        self.my_socket = socket(AF_INET, SOCK_STREAM)
-        self.my_socket.settimeout(timeout)
-        self.connect(server_addr, port)
 
-    def __exit__(self, type, value, traceback):
-        self.close()
+	@auto_reconnect()
+	def __init__(self, server_addr, port, timeout=1):
 
-    def connect(self, address, port):
-        self.my_socket.connect((address, port))
-        print(f"client connecting to server: {address}")
+		self.server_addr = server_addr
+		self.port = port
+		self.timeout = timeout
 
-    def close(self):
-        self.my_socket.close()
-        print("remote client socket closed")
+		self.connect()
 
-    def send(self, touch_state, x, y):
-        paras = [touch_state, x, y]
-        self.my_socket.send(str(" ".join([str(item) for item in paras]) + "\n").encode())
-    
-    def sendButton(self, cmd):
-        self.my_socket.send((cmd+"\n").encode())
-    
-    def sendPressure(self, pressure):
-        self.my_socket.send((str(pressure)+"\n").encode())
+	def __enter__(self):
+		return self
+
+	def __exit__(self, type, value, traceback):
+		self.close()
+
+	def connect(self):
+		self.my_socket = socket(AF_INET, SOCK_STREAM)
+		self.my_socket.settimeout(self.timeout)
+		self.my_socket.connect((self.server_addr, self.port))
+		print(f"client connecting to server: {self.server_addr}:{self.port}")
+
+	def close(self):
+		self.my_socket.close()
+		print("remote client socket closed")
+
+	@auto_reconnect()
+	def send(self, touch_state, x, y):
+		paras = [touch_state, x, y]
+		self.my_socket.send(str(" ".join([str(item) for item in paras]) + "\n").encode())
+	
+	@auto_reconnect()
+	def sendButton(self, cmd):
+		self.my_socket.send((cmd+"\n").encode())
+	
+	@auto_reconnect()
+	def sendPressure(self, pressure):
+		self.my_socket.send((str(pressure)+"\n").encode())
 
 
-def main():
-	## load config and combine commandline arguments
-	if args.config:
-		config = load_config(args.config)
-	else:
-		config = blank_config()
+def task(config):
+	my_remote_handle = CursorClient(IP, PORT)
 
 	my_processor = Processor(
 		config['process']['interp'], 
@@ -68,7 +96,6 @@ def main():
 	)
 	my_cursor.print_info()
 
-	my_remote_handle = CursorClient(IP, PORT)
 
 	with Uclient(
 		config['connection']['client_address'], 
@@ -82,6 +109,16 @@ def main():
 			row, col, val = my_processor.parse(frame)
 			moving, x, y, val = my_cursor.update(row, col, val)
 			my_remote_handle.sendPressure(val)
+
+
+def main():
+	## load config and combine commandline arguments
+	if args.config:
+		config = load_config(args.config)
+	else:
+		config = blank_config()
+
+	task(config)
 
 
 if __name__ == '__main__':
