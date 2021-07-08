@@ -84,6 +84,11 @@ process:
   threshold: ~
   ## special check for certain hardwares: false
   special_check: ~
+  ## intermediate result: 0, 1, 2
+    ## 0: convert voltage to reciprocal resistance
+    ## 1: convert & spatial filter
+    ## 2: convert & spatial filter & temporal filter
+  intermediate: ~
 
 pointing:
   ## value bound for checking cursor moving state: 0

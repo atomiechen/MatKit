@@ -224,21 +224,30 @@ class DataHandlerPressure(DataHandler):
 	my_INIT_CALI_FRAMES = 200
 	my_WIN_SIZE = 0
 
-	mask = None
-
 	def __init__(self, **kwargs):
 		self.mask = None
+
+		## output intermediate result
+		## 0: convert voltage to reciprocal resistance
+		## 1: convert & spatial filter
+		## 2: convert & spatial filter & temporal filter
+		self.intermediate = 0
+		self.data_inter = None
+
 		self.config(**kwargs)
 
 	def config(self, *, n, raw=None, V0=None, R0_RECI=None, convert=None, 
 		mask=None, filter_spatial=None, filter_spatial_cutoff=None, 
 		butterworth_order=None, filter_temporal=None, 
 		filter_temporal_size=None, rw_cutoff=None, cali_frames=None, 
-		cali_win_size=None, **kwargs):
-		if n is not None:
-			self.n = check_shape(n)
-			self.total = self.n[0] * self.n[1]
-			self.cols = self.n[1]//2 + 1
+		cali_win_size=None, 
+		intermediate=None,
+		**kwargs):
+
+		self.n = check_shape(n)
+		self.total = self.n[0] * self.n[1]
+		self.cols = self.n[1]//2 + 1
+
 		if raw is not None:
 			self.my_raw = raw
 		if V0:
@@ -271,6 +280,8 @@ class DataHandlerPressure(DataHandler):
 			self.my_INIT_CALI_FRAMES = cali_frames
 		if cali_win_size is not None:
 			self.my_WIN_SIZE = cali_win_size
+		if intermediate is not None:
+			self.intermediate = intermediate
 
 	@staticmethod
 	def calReciprocalResistance(voltage, v0, r0_reci):
@@ -306,28 +317,14 @@ class DataHandlerPressure(DataHandler):
 			self.prepare_cali()
 		self.print_proc()
 
-	def prepare_loop(self, data):
+	def handle(self, data, data_inter=None):
 		self.handle_raw_frame(data)
+		self.data_inter = data_inter
 
-		if self.need_cache > 0:
-			self.filter()
-			self.need_cache -= 1
-			return True
-		if self.frame_cnt < self.my_INIT_CALI_FRAMES:
-			## accumulate data
-			self.filter()
-			self.data_zero += self.data_tmp
-			self.frame_cnt += 1
-			return True
-		else:
-			## get average
-			self.data_zero /= self.frame_cnt
-			## calculate data_win
-			self.data_win[:] = self.data_zero
-			return False
+		## output intermediate result
+		if self.data_inter is not None and self.intermediate == 0:
+			self.data_inter[:] = self.data_tmp[:]
 
-	def handle(self, data):
-		self.handle_raw_frame(data)
 		if not self.my_raw:
 			self.filter()
 			self.calibrate()
@@ -374,7 +371,14 @@ class DataHandlerPressure(DataHandler):
 
 	def filter(self):
 		self.spatial_filter()
+		## output intermediate result
+		if self.data_inter is not None and self.intermediate == 1:
+			self.data_inter[:] = self.data_tmp[:]
+
 		self.temporal_filter()
+		## output intermediate result
+		if self.data_inter is not None and self.intermediate == 2:
+			self.data_inter[:] = self.data_tmp[:]
 
 	def prepare_temporal(self):
 		if self.my_filter_temporal == FILTER_TEMPORAL.NONE:
@@ -556,6 +560,7 @@ class Proc:
 
 		## intermediate data
 		self.data_tmp = np.zeros(self.total, dtype=float)
+		self.data_inter = np.zeros(self.total, dtype=float)
 
 		## shared data
 		self.data_out = data_out
@@ -706,15 +711,6 @@ class Proc:
 		self.handler_pressure.prepare(gen_pressure())
 		self.handler_imu.prepare(gen_imu())
 
-		# ret = True
-		# while ret:
-		# 	self.get_raw_frame()
-		# 	ret = self.handler_pressure.prepare_loop(self.data_tmp)
-		# ret = True
-		# while ret:
-		# 	self.get_raw_frame()
-		# 	ret = self.handler_imu.prepare_loop(self.data_imu)
-
 		print("Running processing...")
 		while True:
 			## check signals from the other process
@@ -761,11 +757,11 @@ class Proc:
 				print(f"Processing time: {time.time()-self.start_time:.3f} s")
 				break
 			self.cur_time = time.time()
-			self.data_raw[:] = self.data_tmp
 
-			self.handler_pressure.handle(self.data_tmp)
+			self.handler_pressure.handle(self.data_tmp, self.data_inter)
 			self.handler_imu.handle(self.data_imu)
 
+			self.data_raw[:] = self.data_inter
 			self.data_out[:] = self.data_tmp
 			self.post_action()
 
