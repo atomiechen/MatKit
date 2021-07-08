@@ -53,7 +53,7 @@ serial:
   ## data transmission protocol: simple, secure
   protocol: secure
   ## support IMU data
-  imu: ~
+  imu: true
 
 connection:  ## use defaults
   ## use UDP or UNIX domain socket
@@ -100,6 +100,11 @@ process:
   threshold: ~
   ## special check for certain hardwares: false
   special_check: true
+  ## intermediate result: 0, 1, 2
+    ## 0: convert voltage to reciprocal resistance
+    ## 1: convert & spatial filter
+    ## 2: convert & spatial filter & temporal filter
+  intermediate: ~
 
 pointing:
   ## value bound for checking cursor moving state: 0
@@ -115,6 +120,6 @@ visual:
   ## using pyqtgraph or matplotlib
   pyqtgraph: false
   ## z-axis limit: 3, 5
-  zlim: 10
+  zlim: 3
   ## frame rate: 100
   fps: 100
