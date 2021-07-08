@@ -111,7 +111,7 @@ class NearbySmooth(Smooth):
 	def getData(self):
 		return self.lastData
 class AverageSmooth(Smooth):
-	def __init__(self, N = 100):
+	def __init__(self, N = 10):
 		self.data = []
 		self.N = N
 	def update(self, d):
@@ -189,7 +189,7 @@ class ProcIMU:
 		self.gravityData = []
 		self.running = False
 		self.G_ref = 9.801
-		self.G_threshold = 0.1
+		self.G_threshold = 0.2
 		self.x_bot = 20
 		self.x_top = 0
 		self.y_bot = -120
@@ -206,6 +206,9 @@ class ProcIMU:
 			#SWN data
 			# self.calibrateCenter = [ 0.00987332, -0.01452841, 0.19158983] 
 			# self.calibrateScale = [9.81646455236567, 9.871776503810343, 9.719935747473379]
+			#SWN data2
+			self.calibrateCenter = [0.04218729, 0.08655178, -0.24946698]
+			self.calibrateScale = [9.89370337798936, 9.852362167496885, 9.738741250318913]
 
 	def loadM(self):
 		p = pathlib.Path('.') / 'M_value.txt'
@@ -346,7 +349,7 @@ class ProcIMU:
 					#0:blue 1:orange 2: green
 					# self.measure[:3] = [ax, ay, 0]
 					
-					self.measure[:3] = [ax, ay, az]
+					self.measure[:3] = [az, ax, value]
 					# self.measure[:3] = self.data_imu[:3]
 					###print(f'[running] x: {x}, y: {y}, v: {value}')
 					# print(f'[running] x: {ay}, y: {ax}, v:{value}')
