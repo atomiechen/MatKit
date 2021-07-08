@@ -328,6 +328,9 @@ class DataHandlerPressure(DataHandler):
 		if not self.my_raw:
 			self.filter()
 			self.calibrate()
+		elif self.data_inter is not None and self.intermediate != 0:
+			## output intermediate result, making data_inter not blank
+			self.data_inter[:] = self.data_tmp[:]
 
 	def prepare_cali(self):
 		if self.my_INIT_CALI_FRAMES <= 0:
