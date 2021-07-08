@@ -40,7 +40,8 @@ filename = PATH_OUTFILE.format(timestamp)
 def get_timestamp():
 	return datetime.now().strftime(FORMAT_TIMESTAMP)
 
-def mapping(x, y, left=0.1, right=0.9, up=0.1, down=0.9):
+# def mapping(x, y, left=0.5, right=0.75, up=0.2, down=0.7):
+def mapping(x, y, left=0.35, right=0.75, up=0.2, down=0.6):
 	x0 = 1-y
 	y0 = 1-x
 	x1 = min(max(x0 - left, 0) / (right - left), 0.999)
@@ -51,8 +52,12 @@ def constrain(value, vmin=0, vmax=0.999):
 	return max(min(value, vmax), vmin)
 
 def main(args):
-	ratioX = 1.5
-	ratioY = 1.5
+	if args.mapcoor or args.trackpoint:
+		ratioX = 1
+		ratioY = 1
+	else:
+		ratioX = 1.5
+		ratioY = 1.5
 
 	state = STATE_HOVER
 	touching = False
