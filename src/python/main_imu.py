@@ -19,7 +19,11 @@ from pyquaternion import Quaternion
 from toolkit.uclient import Uclient
 from toolkit.visual.player1d import Player1D
 from toolkit import filemanager
-from toolkit.tools import blank_config, check_config
+from toolkit.process import Processor, CursorController, PressureSelector
+from toolkit.tools import blank_config, check_config, load_config, DEST_SUFFIX
+
+from demokit.swipe_gesture import SwipeGesture, SwipeGestureClassifier
+from demokit.cursor_client import CursorClient
 
 from pca import pca_h, pca_v
 from scipy.optimize import leastsq
@@ -32,39 +36,42 @@ import pathlib
 N = 16
 UDP = False
 
+CONFIG_PATH = "config/tmp_config_mouth_16_16.yaml"
+
+
 IP = "localhost"
 IP_PORT = 8081  ## browser
 # IP_PORT = 23456  ## Nine Keys
 
 
-class CursorClient:
-	def __init__(self, server_addr, port, timeout=1):
-		self.my_socket = socket(AF_INET, SOCK_STREAM)
-		self.my_socket.settimeout(timeout)
-		self.connect(server_addr, port)
+# class CursorClient:
+# 	def __init__(self, server_addr, port, timeout=1):
+# 		self.my_socket = socket(AF_INET, SOCK_STREAM)
+# 		self.my_socket.settimeout(timeout)
+# 		self.connect(server_addr, port)
 
-	def __enter__(self):
-		return self
+# 	def __enter__(self):
+# 		return self
 
-	def __exit__(self, type, value, traceback):
-		self.close()
+# 	def __exit__(self, type, value, traceback):
+# 		self.close()
 
-	def connect(self, address, port):
-		self.my_socket.connect((address, port))
-		print(f"client connecting to server: {address}")
+# 	def connect(self, address, port):
+# 		self.my_socket.connect((address, port))
+# 		print(f"client connecting to server: {address}")
 
-	def close(self):
-		self.my_socket.close()
-		print("remote client socket closed")
+# 	def close(self):
+# 		self.my_socket.close()
+# 		print("remote client socket closed")
 
-	def send(self, touch_state, x, y):
-		## touch state: 1按下，2按下时移动，3松开，4松开时移动
-		paras = [touch_state, x, y]
-		# print(f"[send]: {paras}")
-		self.my_socket.send((" ".join([str(item) for item in paras])+"\n").encode())
+# 	def send(self, touch_state, x, y):
+# 		## touch state: 1按下，2按下时移动，3松开，4松开时移动
+# 		paras = [touch_state, x, y]
+# 		# print(f"[send]: {paras}")
+# 		self.my_socket.send((" ".join([str(item) for item in paras])+"\n").encode())
 
-	def sendButton(self, cmd):
-		self.my_socket.send((cmd+"\n").encode())
+# 	def sendButton(self, cmd):
+# 		self.my_socket.send((cmd+"\n").encode())
 
 
 RESOLUTION = 2**15
@@ -77,6 +84,20 @@ UNIT_GYR_RAD = UNIT_GYR * np.pi / 180
 
 # MAX_ACC = 2 * 9.8  ## m/s^2
 # MAX_GYR = 2000  ## degree/s (dps)
+
+
+LEFT = 0.1
+RIGHT = 0.9
+UP = 0.1
+DOWN = 0.9
+
+def mapping(x, y, left=0, right=1, up=0, down=1):
+	x0 = 1-y
+	y0 = 1-x
+	x1 = min(max(x0 - left, 0) / (right - left), 0.999)
+	y1 = min(max(y0 - up, 0) / (down - up), 0.999)
+	return x1, y1
+
 
 def quat_to_mat(q):
 	w, x, y, z = q
@@ -214,6 +235,26 @@ class ProcIMU:
 			# #SWN data3
 			# self.calibrateCenter = [-0.07968226, 0.01155016, 0.07111075]
 			# self.calibrateScale = [9.791473022742816, 9.755175219164151, 9.765819348983804]
+
+		config = kwargs['config']
+		self.my_processor = Processor(
+			config['process']['interp'], 
+			blob=config['process']['blob'], 
+			threshold=config['process']['threshold'],
+			order=config['process']['interp_order'],
+			total=config['process']['blob_num'],
+			special=config['process']['special_check'],
+		)
+		self.my_processor.print_info()
+		self.my_cursor = CursorController(
+			mapcoor=config['pointing']['direct_map'],
+			alpha=config['pointing']['alpha'], 
+			trackpoint=config['pointing']['trackpoint']
+		)
+		self.my_cursor.print_info()
+		self.my_classifier = SwipeGestureClassifier()
+
+
 
 	def loadM(self):
 		p = pathlib.Path('.') / 'M_value.txt'
@@ -441,9 +482,22 @@ class ProcIMU:
 			else:
 				self.my_cursor_client.send(2 if self.inputting else 4, x, y)
 
+		row, col, val = self.my_processor.parse(self.data_pressure)
+		moving, x, y, val = self.my_cursor.update(row, col, val)
+		x, y = mapping(x, y, left=LEFT, right=RIGHT, up=UP, down=DOWN)
+		gesture = self.my_classifier.classify(x, y, moving)
 
+		if gesture == SwipeGesture.UP:
+			self.my_cursor_client.sendButton('up')
+		elif gesture == SwipeGesture.DOWN:
+			self.my_cursor_client.sendButton('down')
+		elif gesture == SwipeGesture.LEFT:
+			self.my_cursor_client.sendButton('left')
+		elif gesture == SwipeGesture.RIGHT:
+			self.my_cursor_client.sendButton('right')
+		elif gesture == SwipeGesture.CLICK:
+			self.my_cursor_client.sendButton('click')
 
-		# self.my_remote_handle = CursorClient("localhost", 8081)
 
 	## ref: https://automaticaddison.com/how-to-convert-a-quaternion-into-euler-angles-in-python/
 	## ref2: https://stackoverflow.com/a/56207565/11854304
@@ -604,6 +658,7 @@ def task_data(measure, flag, args, config):
 		with CursorClient(kwargs['ip'], kwargs['ip_port']) as my_cursor_client:
 			kwargs['client'] = my_cursor_client
 			kwargs['uclient'] = my_client
+			kwargs['config'] = config
 			my_proc = ProcIMU(kwargs)
 			my_proc.run()
 
@@ -712,7 +767,7 @@ if __name__ == '__main__':
 	parser.add_argument('-u', '--udp', dest='udp', action=('store_true'), default=UDP, help="use UDP protocol")
 	parser.add_argument('-n', dest='n', action=('store'), default=[N], type=int, nargs='+', help="specify sensor shape")
 
-	parser.add_argument('--config', dest='config', action=('store'), default=None, help="specify configuration file")
+	parser.add_argument('--config', dest='config', action=('store'), default=CONFIG_PATH, help="specify configuration file")
 
 	parser.add_argument('-d', '--debug', dest='debug', action=('store_true'), default=False, help="debug mode")
 	parser.add_argument('-g', '--gyr', dest='gyr', action=('store_true'), default=False, help="show gyroscope data")
