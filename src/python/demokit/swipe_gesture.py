@@ -13,20 +13,24 @@ class SwipeGesture(IntEnum):
 	UP = 3
 	DOWN = 4
 	CLICK = 5
+	PRESS = 6
 
 class SwipeGestureClassifier:
 
 	INTERP_NUM = 40
 	TH_SWIPE = 3
 	TH_CLICK = 0.05
-	START_BORDER = 0.5
+	START_BORDER = 0.5  ## swipe gesture start border
+	PRESS_TIME = 3  ## long press duration in seconds
+	MIN_INTERVAL = 0.1  ## minimum gesture interval
 
 	def __init__(self, debug=False):
 		self.in_gesture = False
 		self.point_x = []
 		self.point_y = []
-		self.start_time = time.time()
-		self.duration = 0
+		self.cur_time = time.time()
+		self.start_time = self.cur_time
+		self.last_gesture_time = self.cur_time
 
 		self.template_hori = np.zeros((2, self.INTERP_NUM))
 		self.template_hori[0] = np.linspace(0, 1, self.INTERP_NUM)
@@ -37,6 +41,11 @@ class SwipeGestureClassifier:
 
 	def check(self):
 		ret = SwipeGesture.NONE
+
+		duration = self.cur_time - self.start_time
+		if duration >= self.PRESS_TIME:
+			ret = SwipeGesture.PRESS
+			return ret
 
 		x_dis = self.point_x[-1] - self.point_x[0]
 		y_dis = self.point_y[-1] - self.point_y[0]
@@ -125,17 +134,23 @@ class SwipeGestureClassifier:
 
 	def classify(self, x, y, moving):
 		gesture = SwipeGesture.NONE
+
+		self.cur_time = time.time()
 		if moving:
 			if len(self.point_x) == 0:
-				self.start_time = time.time()
+				self.start_time = self.cur_time
 			if len(self.point_x) == 0 or self.point_x[-1] != x or self.point_y[-1] != y:
 				self.point_x.append(x)
 				self.point_y.append(y)
 			self.in_gesture = True
 		else:
 			if self.in_gesture:
-				self.duration = time.time() - self.start_time
 				gesture = self.check()
+				if gesture != SwipeGesture.NONE:
+					if self.cur_time - self.last_gesture_time < self.MIN_INTERVAL:
+						gesture = SwipeGesture.NONE
+					else:
+						self.last_gesture_time = self.cur_time
 				self.point_x = []
 				self.point_y = []
 			self.in_gesture = False
@@ -145,6 +160,7 @@ class SwipeGestureClassifier:
 if __name__ == '__main__':
 	my_classifier = SwipeGestureClassifier()
 
+	time.sleep(0.1)
 	gesture = my_classifier.classify(0, 0, False)
 	gesture = my_classifier.classify(0, 0.1, True)
 	gesture = my_classifier.classify(0, 0.2, True)
@@ -153,6 +169,7 @@ if __name__ == '__main__':
 	gesture = my_classifier.classify(0, 0.5, False)
 	print(gesture)
 
+	time.sleep(0.1)
 	gesture = my_classifier.classify(0, 0, False)
 	gesture = my_classifier.classify(0.1, 0, True)
 	gesture = my_classifier.classify(0.2, 0, True)
@@ -161,6 +178,7 @@ if __name__ == '__main__':
 	gesture = my_classifier.classify(0.5, 0, False)
 	print(gesture)
 
+	time.sleep(0.1)
 	gesture = my_classifier.classify(0, -0, False)
 	gesture = my_classifier.classify(0, -0.1, True)
 	gesture = my_classifier.classify(0, -0.2, True)
@@ -169,10 +187,30 @@ if __name__ == '__main__':
 	gesture = my_classifier.classify(0, -0.5, False)
 	print(gesture)
 
+	time.sleep(0.1)
 	gesture = my_classifier.classify(-0, 0, False)
 	gesture = my_classifier.classify(-0.1, 0, True)
 	gesture = my_classifier.classify(-0.2, 0, True)
 	gesture = my_classifier.classify(-0.3, 0, True)
 	gesture = my_classifier.classify(-0.4, 0, True)
 	gesture = my_classifier.classify(-0.5, 0, False)
+	print(gesture)
+
+	time.sleep(0.1)
+	gesture = my_classifier.classify(-0, 0, False)
+	gesture = my_classifier.classify(-0.01, 0, True)
+	gesture = my_classifier.classify(-0.02, 0, True)
+	gesture = my_classifier.classify(-0.03, 0, True)
+	gesture = my_classifier.classify(-0.04, 0, True)
+	gesture = my_classifier.classify(-0.05, 0, False)
+	print(gesture)
+
+	time.sleep(0.1)
+	gesture = my_classifier.classify(-0, 0, False)
+	gesture = my_classifier.classify(-0.01, 0, True)
+	gesture = my_classifier.classify(-0.02, 0, True)
+	time.sleep(3)
+	gesture = my_classifier.classify(-0.03, 0, True)
+	gesture = my_classifier.classify(-0.04, 0, True)
+	gesture = my_classifier.classify(-0.05, 0, False)
 	print(gesture)

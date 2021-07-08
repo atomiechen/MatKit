@@ -48,6 +48,10 @@ def main():
 	)
 	my_cursor.print_info()
 
+	## 0: 舌势交互
+	## 1: 文本输入
+	mode = 1
+
 	with CursorClient(IP, PORT) as my_remote_handle:
 		with Uclient(
 			config['connection']['client_address'], 
@@ -82,15 +86,26 @@ def main():
 						my_remote_handle.sendButton('space')
 				else:
 					if gesture == SwipeGesture.UP:
+						print("识别到后滑舌势")
 						my_remote_handle.sendButton('up')
 					elif gesture == SwipeGesture.DOWN:
+						print("识别到前滑舌势")
 						my_remote_handle.sendButton('down')
 					elif gesture == SwipeGesture.LEFT:
+						print("识别到左滑舌势")
 						my_remote_handle.sendButton('left')
 					elif gesture == SwipeGesture.RIGHT:
+						print("识别到右滑舌势")
 						my_remote_handle.sendButton('right')
 					elif gesture == SwipeGesture.CLICK:
 						my_remote_handle.sendButton('click')
+					elif gesture == swipe_gesture.PRESS:
+						if mode == 0:
+							print("进入文本打字模式")
+							mode = 1
+						else:
+							print("进入舌势交互模式")
+							mode = 0
 
 
 if __name__ == '__main__':
