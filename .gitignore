@@ -19,3 +19,5 @@ all_data/
 
 .idea/
 .ipynb_checkpoints
+
+.ps1
