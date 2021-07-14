@@ -37,7 +37,7 @@ sensor:
 
 serial:
   ## baudrate: 9600, 250000, 500000, 1000000
-  baudrate: 1000000
+  baudrate: 115200
   ## serial port timeout, in seconds
   timeout: 1
   ## serial port

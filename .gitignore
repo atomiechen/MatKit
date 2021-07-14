@@ -21,3 +21,4 @@ all_data/
 .ipynb_checkpoints
 
 .ps1
+.vscode
