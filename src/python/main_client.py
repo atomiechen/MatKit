@@ -66,6 +66,8 @@ def prepare_config(args):
 		config['visual']['pyqtgraph'] = not args.matplot
 	if config['visual']['scatter'] is None or hasattr(args, 'scatter'+DEST_SUFFIX):
 		config['visual']['scatter'] = args.scatter
+	if config['visual']['show_value'] is None or hasattr(args, 'show_value'+DEST_SUFFIX):
+		config['visual']['show_value'] = args.show_value
 	if config['client_mode']['raw'] is None or hasattr(args, 'raw'+DEST_SUFFIX):
 		config['client_mode']['raw'] = args.raw
 	if config['client_mode']['interactive'] is None or hasattr(args, 'interactive'+DEST_SUFFIX):
@@ -117,7 +119,8 @@ def main(args):
 			my_player = Player(
 				zlim=config['visual']['zlim'], 
 				N=config['process']['interp'],
-				scatter=config['visual']['scatter']
+				scatter=config['visual']['scatter'],
+				show_value=config['visual']['show_value']
 			)
 
 			my_generator = my_client.gen(input_arg)
@@ -145,6 +148,7 @@ if __name__ == '__main__':
 	parser.add_argument('--config', dest='config', action=make_action('store'), default=None, help="specify configuration file")
 
 	parser.add_argument('--scatter', dest='scatter', action=make_action('store_true'), default=False, help="show scatter plot")
+	parser.add_argument('--show_value', dest='show_value', action=make_action('store_true'), default=False, help="show area value")
 	args = parser.parse_args()
 
 	main(args)

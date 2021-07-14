@@ -12,7 +12,7 @@ def get_model(filename):
 	X = []
 	with open(filename, 'r') as fin:
 		for line in fin:
-			data_parse, _, _ = filemanager.parse_line(line, 4, ',')
+			data_parse, _, _ = filemanager.parse_line(line, 3, ',')
 			X.append(data_parse)
 	X = np.array(X)
 	pca = PCA(n_components=1)

@@ -18,6 +18,7 @@ from os import unlink
 import errno
 from struct import calcsize, pack, unpack, unpack_from
 from typing import Iterable
+import time
 
 from .tools import check_shape
 from .cmd import CMD
@@ -284,37 +285,51 @@ class Uclient:
 		self.frame_idx = result[-1]
 		return self.data_imu, self.frame_idx
 
-	def fetch_frame(self, input_arg=CMD.DATA):
-		try:
-			self.send_cmd(input_arg)
-			self.recv_frame()
-		except:
-			pass
+	def fetch_frame(self, input_arg=CMD.DATA, new=False):
+		if new:
+			## fetch a new pressure frame
+			idx_prev = self.frame_idx
+			self.fetch_frame_base(input_arg)
+			while self.frame_idx == idx_prev:
+				time.sleep(0.001)
+				self.fetch_frame_base(input_arg)
+		else:
+			self.fetch_frame_base(input_arg)
 		return self.data_reshape
 
-	def fetch_frame_and_index(self, input_arg=CMD.DATA):
+	def fetch_frame_and_index(self, input_arg=CMD.DATA, new=False):
+		self.fetch_frame(input_arg, new)
+		return self.data_reshape, self.frame_idx
+
+	def fetch_frame_base(self, input_arg):
 		try:
 			self.send_cmd(input_arg)
 			self.recv_frame()
 		except:
 			pass
-		return self.data_reshape, self.frame_idx
 
-	def fetch_imu(self):
-		try:
-			self.send_cmd(CMD.DATA_IMU)
-			self.recv_imu()
-		except:
-			pass
+	def fetch_imu(self, new=False):
+		if new:
+			## fetch a new IMU frame
+			idx_prev = self.frame_idx
+			self.fetch_imu_base()
+			while self.frame_idx == idx_prev:
+				time.sleep(0.001)
+				self.fetch_imu_base()
+		else:
+			self.fetch_imu_base()
 		return self.data_imu
 
-	def fetch_imu_and_index(self):
+	def fetch_imu_and_index(self, new=False):
+		self.fetch_imu(new)
+		return self.data_imu, self.frame_idx
+
+	def fetch_imu_base(self):
 		try:
 			self.send_cmd(CMD.DATA_IMU)
 			self.recv_imu()
 		except:
 			pass
-		return self.data_imu, self.frame_idx
 
 	def gen(self, input_arg=CMD.DATA):
 		"""generate a data generator given specific command

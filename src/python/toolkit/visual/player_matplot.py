@@ -1,9 +1,10 @@
-from numpy import arange, meshgrid, zeros, array
+import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator, FixedLocator, FormatStrFormatter
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import animation
+from matplotlib.offsetbox import AnchoredText
 import mpl_toolkits.axes_grid1
 import matplotlib.widgets
 import sys
@@ -38,9 +39,9 @@ class Player3DMatplot(Player3D):
 		self.ax = self.fig.add_subplot( 111, projection='3d' )
 		self.ax.set_zlim3d( 0, self.zlim )
 
-		rng1 = arange( 0, self.N[1], self.lowerCutoffLength )
-		rng2 = arange( 0, self.N[0], self.lowerCutoffLength )
-		self.X, self.Y = meshgrid(rng1, rng2)
+		rng1 = np.arange( 0, self.N[1], self.lowerCutoffLength )
+		rng2 = np.arange( 0, self.N[0], self.lowerCutoffLength )
+		self.X, self.Y = np.meshgrid(rng1, rng2)
 		self.ax.w_zaxis.set_major_locator( LinearLocator( 10 ) )
 		self.ax.w_zaxis.set_major_formatter( FormatStrFormatter( '%.03f' ) )
 		## ref: https://matplotlib.org/stable/api/_as_gen/mpl_toolkits.mplot3d.axes3d.Axes3D.html#mpl_toolkits.mplot3d.axes3d.Axes3D.set_box_aspect
@@ -53,9 +54,10 @@ class Player3DMatplot(Player3D):
 		self.ax.azim += 180  ## = 120
 
 		self.scatter = False
+		self.show_value = False
 		self.config(**kwargs)
 
-		heightR = zeros( self.X.shape )
+		heightR = np.zeros( self.X.shape )
 		if self.scatter:
 			self.X = self.X.reshape(-1)
 			self.Y = self.Y.reshape(-1)
@@ -66,10 +68,19 @@ class Player3DMatplot(Player3D):
 				self.X, self.Y, heightR, rstride=1, cstride=1, cmap=cm.YlOrRd,
 				linewidth=0, antialiased=True )
 
-	def config(self, *, scatter=None, **kwargs):
+		## for showing value
+		if self.show_value:
+			value_str = f"Area: 0"
+			self.text2d = self.ax.text2D(0.01, 1.02, value_str, transform=self.ax.transAxes)
+
+		print(f"show_value: {self.show_value}")
+
+	def config(self, *, scatter=None, show_value=None, **kwargs):
 		super().config(**kwargs)
 		if scatter is not None:
 			self.scatter = scatter
+		if show_value is not None:
+			self.show_value = show_value
 
 	def _start(self):
 		super()._start()
@@ -80,14 +91,19 @@ class Player3DMatplot(Player3D):
 		plt.close()
 
 	def _draw(self, data):
+		data = np.array(data)
 		if self.scatter:
-			data = array(data)
 			self.scatter_plot._offsets3d = (self.X, self.Y, data.reshape(-1))
 		else:
 			self.surf.remove()
 			self.surf = self.ax.plot_surface( 
 				self.X, self.Y, data, rstride=1, cstride=1, cmap=cm.YlOrRd,
 				linewidth=0, antialiased=True )
+
+		if self.show_value:
+			area = np.sum(data>0)
+			value_str = f"Area: {area}"
+			self.text2d.set_text(value_str)
 
 	def _prepare_stream(self):
 		self.fig.canvas.mpl_connect('key_press_event', self.on_key_stream)
