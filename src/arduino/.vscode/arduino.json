@@ -1,6 +1,0 @@
-{
-    "port": "COM4",
-    "board": "arduino:avr:uno",
-    "programmer": "arduino:avrisp",
-    "sketch": "4_uno_4067\\4_uno_4067.ino"
-}
