@@ -136,6 +136,7 @@ def task_file(paras):
 		my_setter, 
 		paras['data_out'], 
 		paras['data_raw'], 
+		paras['data_imu'],
 		paras['idx_out'],
 		raw=False,
 		warm_up=0,

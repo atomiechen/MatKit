@@ -614,7 +614,14 @@ class Proc:
 			if not self.copy_tags:
 				timestamp = int(self.cur_time*1000000)
 				self.tags = [self.idx_out.value, timestamp]
-			write_line(self.filename, data_ptr, tags=self.tags)
+			saved_filename = self.filename
+			if self.filename_id > 0:
+				## use saved_filename to generate file_1 file_2 etc.
+				## should not use . in the original filename
+				saved_filename = self.filename.split(".")
+				saved_filename[0] = saved_filename[0] + "_" + str(self.filename_id)
+				saved_filename = ".".join(saved_filename)
+			write_line(saved_filename, data_ptr, tags=self.tags)
 
 	def loop_proc(self):
 		print("Running processing...")

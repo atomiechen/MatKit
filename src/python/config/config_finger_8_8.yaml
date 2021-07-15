@@ -53,7 +53,7 @@ connection:  ## use defaults
 
 process:
   ## reference voltage: 255, 255/3.6*3.3
-  V0: 255/3.6*3.3
+  V0: 255
   ## constant factor: 1
   R0_RECI: ~
   ## convert voltage to resistance: true
@@ -63,7 +63,7 @@ process:
   ## spatial filter: none, ideal, butterworth, gaussian
   filter_spatial: ~
   ## spatial filter cut-off freq: 3.5
-  filter_spatial_cutoff: 
+  filter_spatial_cutoff: 1.6
   ## Butterworth filter order: 2
   butterworth_order: ~
   ## temporal filter: none, moving average, rectangular window
