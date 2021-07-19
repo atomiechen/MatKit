@@ -615,7 +615,7 @@ class Proc:
 				timestamp = int(self.cur_time*1000000)
 				self.tags = [self.idx_out.value, timestamp]
 			saved_filename = self.filename
-			if self.filename_id > 0:
+			if self.filename_id >= 0:
 				## use saved_filename to generate file_1 file_2 etc.
 				## should not use . in the original filename
 				saved_filename = self.filename.split(".")
