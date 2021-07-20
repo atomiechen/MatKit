@@ -17,6 +17,7 @@ main
 *.pkl
 all_data/
 data/
+model/
 
 .idea/
 .ipynb_checkpoints
