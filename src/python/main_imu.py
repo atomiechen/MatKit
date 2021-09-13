@@ -25,7 +25,6 @@ from toolkit.tools import blank_config, check_config, load_config, DEST_SUFFIX
 from demokit.swipe_gesture import SwipeGesture, SwipeGestureClassifier
 from demokit.cursor_client import CursorClient
 
-from pca import pca_h, pca_v
 from scipy.optimize import leastsq
 from scipy.signal import savgol_filter
 from scipy import linalg
