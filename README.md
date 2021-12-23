@@ -168,7 +168,7 @@ UNIX domain socket通信地址：`/var/tmp/unix.socket.server`
 
 ### 环境配置
 
-#### 一键安装
+#### 一键安装（推荐）
 
 需要使用python3，可以在根目录下一键配置（推荐使用虚拟环境）：
 
@@ -184,29 +184,27 @@ pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 
 
-#### 手动安装
+#### 手动安装（备选）
 
-也可以手动安装如下python库：
+也可以使用如下方式手动安装本项目所需要的第三方python包，包名替换为所要安装的包名即可：
+
+```sh
+pip3 install <包名>
+```
+
+数学计算：
 
 - `numpy`，数值计算
-
-  ```sh
-  pip3 install numpy
-  ```
-
-- `scipy`，插值
-
-  ```sh
-  pip3 install scipy
-  ```
+- `scipy`，用于插值计算
 
 串口：
 
 - `pyserial`
 
-  ```sh
-  pip3 install pyserial
-  ```
+配置相关：
+
+- `PyYAML`，解析yaml配置文件
+- `pyparsing`，解析配置文件中可能存在的算术表达式
 
 可视化相关：以下二者至少选一个，`matplotlib`美观，`pyqtgraph`速度快
 
@@ -240,19 +238,13 @@ pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
     pip3 install pyqt5
     ```
 
-模拟计算机输入设备（鼠标键盘等）：`PyAutoGUI`
+模拟计算机输入设备（鼠标键盘等）：
 
-```sh
-pip3 install pyautogui
-```
+- `PyAutoGUI`
 
-可选库：
+可选包：
 
-- Windows平台可安装`pyreadline`，方便程序中命令行文本输入时按上下键切换到历史输入
-
-  ```sh
-  pip3 install pyreadline
-  ```
+- `pyreadline`（仅针对Windows）：方便程序中命令行文本输入时按上下键切换到历史输入
 
 
 
