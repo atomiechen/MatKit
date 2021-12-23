@@ -242,10 +242,6 @@ pip3 install <包名>
 
 - `PyAutoGUI`
 
-可选包：
-
-- `pyreadline`（仅针对Windows）：方便程序中命令行文本输入时按上下键切换到历史输入
-
 
 
 ### YAML配置文件
