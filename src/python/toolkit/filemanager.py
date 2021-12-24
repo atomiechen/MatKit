@@ -39,8 +39,8 @@ def readlines(filename):
 def findall(pattern):
 	return glob.glob(pattern)
 
-## parse a string line into a list
-## matrix sensor format: N*N points, frame_idx, date_time (or tags)
+## parse a string line into matrix sensor format: 
+## data_out (an array of points), frame_idx, date_time (or tags)
 def parse_line(line, points=256, delim=',', data_out=None):
 	paras = line.strip().split(delim)
 	if data_out is None:
@@ -62,7 +62,7 @@ def parse_line(line, points=256, delim=',', data_out=None):
 	return data_out, frame_idx, date_time
 
 ## write a line to file
-## matrix sensor format: data (Iterable), tags (str / Iterable / other type except None)
+## format: data (Iterable), tags (str / Iterable / other type except None)
 def write_line(filename, data, tags=None, delim=',', override=False):
 	items = [str(item) for item in data]
 	if isinstance(tags, str):
@@ -76,7 +76,7 @@ def write_line(filename, data, tags=None, delim=',', override=False):
 	write(filename, content, override=override)
 
 ## write multiple lines to file
-## matrix sensor format: data (2d Iterable), tags (str / Iterable / other type except None)
+## format: data (2d Iterable), tags (str / Iterable / other type except None)
 def write_lines(filename, data, tags=None, delim=',', override=False):
 	tags_list = []
 	if isinstance(tags, str):
